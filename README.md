@@ -18,7 +18,9 @@ Flask dashboard.
 
 ## Current milestone
 
-Milestone 2: project skeleton. No dataset or trained model has been added yet.
+Milestone 3 is complete: the CICIDS2017 data has been inspected, validated,
+and saved in a processed binary-classification format. The next milestone is a
+baseline Random Forest model. No model has been trained yet.
 
 ## Setup
 

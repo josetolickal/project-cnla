@@ -5,6 +5,10 @@
 __pycache__/
 *.py[cod]
 
+# Downloaded datasets
+data/*
+!data/.gitkeep
+
 # Generated project output
 logs/
 models/*.joblib

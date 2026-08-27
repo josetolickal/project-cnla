@@ -3,3 +3,6 @@ numpy>=2.0
 pandas>=2.2
 scikit-learn>=1.6
 joblib>=1.4
+
+# Read the CICIDS2017 mirror's Parquet dataset files
+pyarrow>=18.0
