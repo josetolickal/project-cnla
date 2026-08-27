@@ -369,3 +369,96 @@ than false alarms.
 
 All three files are excluded from Git (generated artefacts).
 Source code committed: `src/train_model.py`.
+
+---
+
+## Milestone 5 — Prediction Pipeline
+
+### Goal
+
+Build a reusable module that loads the saved model and predicts whether a
+single network flow is benign or malicious, returning a label and a
+confidence probability. This module is the shared entry point for all
+future components — SHAP explainability, risk scoring, and the dashboard
+will all call it instead of duplicating the prediction logic.
+
+### What the prediction pipeline is and why it is needed
+
+After training, the model is saved to disk as a `.joblib` file. To use it
+again the project needs code that:
+
+1. Loads the model from disk (only done once, then reused).
+2. Accepts one row of feature values as input.
+3. Arranges the features in exactly the same order the model was trained on.
+4. Asks the model for a prediction and a probability.
+5. Returns a clean, readable result.
+
+Without this module, every part of the project (dashboard, risk engine,
+SHAP) would have to repeat all of these steps. Putting it in one place
+means a bug only needs to be fixed once.
+
+### What `load_pipeline()` does
+
+Loads two files from the `models/` folder:
+- `random_forest_baseline.joblib` — the trained Random Forest object.
+- `feature_names.json` — the ordered list of 77 feature names.
+
+Both are returned together in a dict called the *pipeline*. The feature
+names are loaded alongside the model because the model internally maps
+column index 0 to the first feature it was trained on, index 1 to the
+second, and so on. If a caller passes features in a different order, the
+prediction will be silently wrong. Keeping the feature list guarantees
+the order is always correct.
+
+### What `predict_flow()` does
+
+Accepts one traffic flow as a Python dict or pandas Series (both formats
+are supported). Steps performed:
+
+1. Checks that all 77 required feature names are present. Raises a clear
+   error message if any are missing.
+2. Builds a single-row numpy array with features in the correct order.
+3. Calls `model.predict()` → returns 0 (benign) or 1 (malicious).
+4. Calls `model.predict_proba()` → returns a probability for each class;
+   takes the probability of the malicious class (index 1).
+5. Returns a dict: `label`, `is_malicious`, and `probability`.
+
+Extra columns like `attack_type` and `is_malicious` in the input are
+silently ignored, so raw dataset rows can be passed directly without
+any pre-filtering.
+
+### What the probability value means
+
+`probability` is how confident the model is that the flow is malicious,
+on a scale from 0.0 to 1.0. It comes from `predict_proba()`, which
+counts what fraction of the 100 trees voted "malicious".
+
+- `1.0` — all 100 trees voted malicious (maximum confidence).
+- `0.0` — all 100 trees voted benign.
+- `0.6` — 60 trees voted malicious, 40 voted benign (borderline).
+
+This probability is important for the risk engine (Milestone 7), which
+will use it to decide whether a detection is LOW, MEDIUM, HIGH, or
+CRITICAL risk.
+
+### Files created
+
+| File | Purpose |
+|---|---|
+| `src/predict.py` | `load_pipeline()` and `predict_flow()` functions; also contains `predict_batch()` for batch use by the dashboard |
+| `src/run_prediction_demo.py` | Demo script that runs 4 real rows through the pipeline and prints results |
+
+### Actual demo results (4 real rows from the dataset)
+
+| Test | Ground truth | Predicted | Probability | Result |
+|------|-------------|-----------|-------------|--------|
+| Benign flow (Monday traffic) | Benign | benign | 0.0000 | PASS ✓ |
+| DDoS attack flow | DDoS | malicious | 1.0000 | PASS ✓ |
+| DoS slowloris flow | DoS slowloris | malicious | 1.0000 | PASS ✓ |
+| Benign flow (from DDoS file) | Benign | benign | 0.0000 | PASS ✓ |
+
+All 4 tests passed. The pipeline correctly:
+- Loads and reuses the saved model.
+- Ignores non-feature columns (`attack_type`, `is_malicious`) automatically.
+- Returns the correct label and probability for every test case.
+- Handles rows from different Parquet files without any special setup.
