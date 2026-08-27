@@ -102,3 +102,86 @@ The resulting files have 79 columns: 77 numeric features, `attack_type`, and
 `is_malicious`. They are stored in `data/processed/cicids2017_binary/` and are
 ignored by Git because they are generated data. Milestone 3 is complete. No
 model result has been claimed or measured.
+
+## Milestone 4 — Baseline Random Forest Model
+
+### Goal
+
+Train a Random Forest classifier on the processed CICIDS2017 data,
+evaluate it on a held-out test set, and save the model and metrics.
+
+### Data used
+
+- All 8 processed Parquet files combined: 2,313,810 rows, 77 numeric features.
+- `attack_type` and `is_malicious` excluded from features.
+  `is_malicious` (0 = benign, 1 = malicious) is the target label.
+- Class balance: 85.5 % benign (1,977,318 rows), 14.5 % malicious (336,492 rows).
+
+### Train / test split
+
+Stratified 80 / 20 split with `random_state=42`:
+
+| Set      | Rows      | Malicious % |
+|----------|-----------|-------------|
+| Training | 1,851,048 | 14.54 %     |
+| Test     | 462,762   | 14.54 %     |
+
+Stratification ensures both halves have the same class ratio.
+
+### Model configuration
+
+| Parameter       | Value      | Reason                                         |
+|-----------------|------------|------------------------------------------------|
+| n_estimators    | 100        | Standard baseline; good balance of speed/accuracy |
+| class_weight    | balanced   | Prevents the model ignoring the minority class |
+| random_state    | 42         | Reproducible results                           |
+| n_jobs          | -1         | Use all CPU cores for faster training          |
+
+### Actual measured results (test set, 462,762 rows)
+
+Training time: **105 seconds** on the local machine.
+
+| Metric    | Value  |
+|-----------|--------|
+| Accuracy  | 99.88 % |
+| Precision | 0.9951 |
+| Recall    | 0.9965 |
+| F1-score  | 0.9958 |
+
+Full per-class breakdown:
+
+|               | Precision | Recall | F1-score | Support |
+|---------------|-----------|--------|----------|---------|
+| Benign (0)    | 1.00      | 1.00   | 1.00     | 395,464 |
+| Malicious (1) | 1.00      | 1.00   | 1.00     | 67,298  |
+
+### Interpretation
+
+All four metrics are above 99.5 %. This is high but expected for
+the CICIDS2017 benchmark: it contains many repeated attack patterns that
+Random Forest distinguishes easily from benign flows using basic flow
+statistics (packet counts, durations, byte rates).
+
+The results are trustworthy because:
+- The model never saw the test set during training (strict 80/20 split).
+- Stratification ensures the test set contains the same class distribution
+  as the full dataset.
+- `class_weight="balanced"` was used so the model was not rewarded for
+  simply predicting "benign" on everything.
+
+In a real deployment the model would face novel, unseen attack patterns.
+This benchmark score reflects performance on known attack categories.
+The Recall of 0.9965 means the model misses only 0.35 % of malicious flows
+in this test set — important because missed attacks are more dangerous
+than false alarms.
+
+### Saved outputs
+
+| File                                  | Purpose                              |
+|---------------------------------------|--------------------------------------|
+| `models/random_forest_baseline.joblib`| Trained model (12.4 MB, compressed)  |
+| `models/baseline_metrics.json`        | All metrics in machine-readable form |
+| `models/feature_names.json`           | Ordered list of the 77 feature names |
+
+All three files are excluded from Git (generated artefacts).
+Source code committed: `src/train_model.py`.
