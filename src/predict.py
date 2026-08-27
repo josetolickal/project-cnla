@@ -3,27 +3,38 @@ Milestone 5 — Prediction pipeline
 ==================================
 
 What this module does (plain English):
-  It provides a single reusable function, predict_flow(), that you can call
-  from anywhere in the project.
+  It provides reusable functions that you can call from anywhere in the project.
 
-  You give it one row of network traffic features (a dict or pandas Series).
-  It loads the trained Random Forest model, checks that the features match
-  what the model expects, and returns:
-    - label       : "benign" or "malicious"
-    - probability : how confident the model is (0.0 to 1.0)
-    - is_malicious: 0 or 1
+  Two-stage pipeline:
+    Stage 1 — predict_flow()
+        Takes one row of network traffic features.
+        Returns: label ("benign"/"malicious"), probability, is_malicious.
+
+    Stage 2 — identify_attack_type()
+        Only called when Stage 1 says "malicious".
+        Uses a second model to identify the specific attack type:
+        DDoS, PortScan, SSH-Patator, DoS Hulk, etc.
+
+  Both models are loaded once with load_pipeline() and reused for every
+  subsequent prediction, so disk access only happens once.
 
   This module is intentionally kept simple so that the Flask dashboard,
   the SHAP explainer, and the risk engine can all call it without
   duplicating any logic.
 
 Usage example:
-    from src.predict import load_pipeline, predict_flow
+    from src.predict import load_pipeline, predict_flow, identify_attack_type
 
     pipeline = load_pipeline()
-    result = predict_flow({"Flow Duration": 100, "Total Fwd Packets": 5, ...}, pipeline)
-    print(result["label"])       # "benign" or "malicious"
-    print(result["probability"]) # e.g. 0.97
+
+    result = predict_flow(flow_dict, pipeline)
+    print(result["label"])        # "benign" or "malicious"
+    print(result["probability"])  # e.g. 0.97
+
+    if result["is_malicious"]:
+        attack = identify_attack_type(flow_dict, pipeline)
+        print(attack["attack_type"])   # e.g. "DDoS"
+        print(attack["confidence"])    # e.g. 0.89
 """
 
 import json
@@ -37,8 +48,10 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 # Default paths (relative to the project root)
 # ---------------------------------------------------------------------------
-DEFAULT_MODEL_PATH = os.path.join("models", "random_forest_baseline.joblib")
-DEFAULT_FEATURE_NAMES_PATH = os.path.join("models", "feature_names.json")
+DEFAULT_MODEL_PATH        = os.path.join("models", "random_forest_baseline.joblib")
+DEFAULT_FEATURE_NAMES_PATH= os.path.join("models", "feature_names.json")
+DEFAULT_ATTACK_MODEL_PATH = os.path.join("models", "attack_type_classifier.joblib")
+DEFAULT_ENCODER_PATH      = os.path.join("models", "attack_type_label_encoder.joblib")
 
 
 # ---------------------------------------------------------------------------
@@ -48,26 +61,35 @@ DEFAULT_FEATURE_NAMES_PATH = os.path.join("models", "feature_names.json")
 def load_pipeline(
     model_path: str = DEFAULT_MODEL_PATH,
     feature_names_path: str = DEFAULT_FEATURE_NAMES_PATH,
+    attack_model_path: str = DEFAULT_ATTACK_MODEL_PATH,
+    encoder_path: str = DEFAULT_ENCODER_PATH,
 ) -> dict:
     """
-    Load the trained model and the list of expected feature names from disk.
+    Load the trained models and supporting files from disk.
 
-    Returns a dict with two keys:
-      "model"         : the trained RandomForestClassifier object
-      "feature_names" : ordered list of 77 feature name strings
+    Returns a dict with four keys:
+      "model"          : the binary RandomForestClassifier (benign vs malicious)
+      "feature_names"  : ordered list of 77 feature name strings
+      "attack_model"   : the multi-class RandomForestClassifier (attack type)
+                         — None if the file does not exist yet
+      "label_encoder"  : the LabelEncoder that maps numbers back to attack names
+                         — None if the file does not exist yet
 
-    Why load both together?
-    The model was trained on features in a specific order. If a caller
-    provides features in a different order, the prediction will be wrong.
-    Storing the feature names alongside the model lets us always reorder
-    the input correctly before predicting.
+    The attack_model and label_encoder are optional: if they have not been
+    trained yet (train_attack_classifier.py not yet run), load_pipeline()
+    still succeeds and predict_flow() still works.  Only identify_attack_type()
+    will raise an error if those files are missing.
 
     Parameters
     ----------
     model_path : str
-        Path to the saved .joblib model file.
+        Path to the binary classification .joblib file.
     feature_names_path : str
-        Path to the saved feature_names.json file.
+        Path to the feature_names.json file.
+    attack_model_path : str
+        Path to the multi-class attack type .joblib file.
+    encoder_path : str
+        Path to the LabelEncoder .joblib file.
     """
     if not os.path.exists(model_path):
         raise FileNotFoundError(
@@ -84,7 +106,16 @@ def load_pipeline(
     with open(feature_names_path, "r") as fh:
         feature_names = json.load(fh)
 
-    return {"model": model, "feature_names": feature_names}
+    # Attack type classifier is optional — load if present
+    attack_model  = joblib.load(attack_model_path)  if os.path.exists(attack_model_path)  else None
+    label_encoder = joblib.load(encoder_path)        if os.path.exists(encoder_path)        else None
+
+    return {
+        "model":         model,
+        "feature_names": feature_names,
+        "attack_model":  attack_model,
+        "label_encoder": label_encoder,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +191,87 @@ def predict_flow(
         "label": label,
         "is_malicious": prediction,
         "probability": round(probability, 4),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Attack type identification (Stage 2 of the two-stage pipeline)
+# ---------------------------------------------------------------------------
+
+def identify_attack_type(
+    flow: Union[dict, pd.Series],
+    pipeline: dict,
+) -> dict:
+    """
+    Identify the specific type of attack in a flow that has already been
+    flagged as malicious by predict_flow().
+
+    Uses the multi-class attack type classifier trained in
+    src/train_attack_classifier.py.
+
+    Parameters
+    ----------
+    flow : dict or pandas.Series
+        The same feature dict/Series you passed to predict_flow().
+
+    pipeline : dict
+        The dict returned by load_pipeline().  Must contain "attack_model"
+        and "label_encoder" (i.e. train_attack_classifier.py must have been
+        run first).
+
+    Returns
+    -------
+    dict with keys:
+        "attack_type"  : str  — human-readable attack name, e.g. "DDoS"
+        "confidence"   : float — probability assigned to that class (0.0–1.0)
+        "all_probs"    : dict  — probability for every class (useful for
+                                 the dashboard to show a breakdown)
+
+    Raises
+    ------
+    RuntimeError
+        If the attack type model has not been trained yet.
+    """
+    attack_model  = pipeline.get("attack_model")
+    label_encoder = pipeline.get("label_encoder")
+    feature_names = pipeline["feature_names"]
+
+    if attack_model is None or label_encoder is None:
+        raise RuntimeError(
+            "Attack type classifier not loaded.\n"
+            "Run src/train_attack_classifier.py first."
+        )
+
+    # Convert to dict
+    if isinstance(flow, pd.Series):
+        flow_dict = flow.to_dict()
+    else:
+        flow_dict = dict(flow)
+
+    # Build feature row (same ordering logic as predict_flow)
+    row = np.array(
+        [float(flow_dict[f]) for f in feature_names], dtype=np.float32
+    ).reshape(1, -1)
+
+    # Get predicted class index and its name
+    predicted_index = int(attack_model.predict(row)[0])
+    attack_name = label_encoder.inverse_transform([predicted_index])[0]
+
+    # Get probability for every class
+    proba_array = attack_model.predict_proba(row)[0]
+    confidence  = float(proba_array[predicted_index])
+
+    # Build a readable dict of all class probabilities (filter out near-zeros)
+    all_probs = {
+        label_encoder.classes_[i]: round(float(p), 4)
+        for i, p in enumerate(proba_array)
+        if p > 0.001
+    }
+
+    return {
+        "attack_type": attack_name,
+        "confidence":  round(confidence, 4),
+        "all_probs":   all_probs,
     }
 
 
