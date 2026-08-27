@@ -1,0 +1,5 @@
+# Core data handling and the baseline machine-learning model
+numpy>=2.0
+pandas>=2.2
+scikit-learn>=1.6
+joblib>=1.4

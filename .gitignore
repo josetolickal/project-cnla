@@ -1,0 +1,14 @@
+# Python virtual environment
+.venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Generated project output
+logs/
+models/*.joblib
+models/*.pkl
+
+# Editor settings
+.vscode/
