@@ -478,7 +478,9 @@ attack types). However, a two-stage pipeline has clearer responsibilities:
 - **Stage 1 (binary model)** — optimised purely for catching attacks vs.
   missing them. High Recall on the malicious class is the priority.
 - **Stage 2 (multi-class model)** — only runs after Stage 1 confirms the
-  flow is malicious. It focuses on distinguishing *between* attack types.
+  flow is malicious. It is trained only on malicious rows, so it focuses on
+  distinguishing *between* attack types and cannot return Benign as an attack
+  name.
 
 If Stage 2 makes a wrong classification (e.g., calls a PortScan a DDoS),
 the important thing — that it was flagged as malicious — is still correct.
@@ -487,33 +489,32 @@ the important thing — that it was flagged as malicious — is still correct.
 
 Machine learning models work with numbers, not text strings. A
 `LabelEncoder` converts each attack name to a unique integer:
-`"Benign" → 0`, `"Bot" → 1`, `"DDoS" → 2`, and so on. The encoder is
+`"Bot" → 0`, `"DDoS" → 1`, `"DoS GoldenEye" → 2`, and so on. The encoder is
 saved alongside the model so the numbers can be converted back to
 human-readable names when displaying results.
 
-#### Multi-class model results (test set, 462,762 rows)
+#### Multi-class model results (attack-only test set, 67,299 rows)
 
-Training time: **39.5 seconds**. Overall accuracy: **99.79 %**.
+Training time: **4.2 seconds**. Overall accuracy: **99.71 %**.
 
 Per-class results (selected):
 
 | Attack type | Precision | Recall | F1-score | Test rows |
 |---|---|---|---|---|
-| Benign | 1.00 | 1.00 | 1.00 | 395,464 |
 | DDoS | 1.00 | 1.00 | 1.00 | 25,603 |
-| DoS Hulk | 0.99 | 1.00 | 1.00 | 34,569 |
-| DoS GoldenEye | 0.99 | 1.00 | 0.99 | 2,057 |
-| DoS slowloris | 0.99 | 0.99 | 0.99 | 1,077 |
-| DoS Slowhttptest | 0.93 | 0.99 | 0.96 | 1,046 |
-| FTP-Patator | 0.99 | 1.00 | 0.99 | 1,186 |
-| SSH-Patator | 0.99 | 0.98 | 0.98 | 644 |
-| PortScan | 0.91 | 0.98 | 0.94 | 391 |
-| Bot | 0.55 | 0.93 | 0.69 | 288 |
-| Web Attack – Brute Force | 0.74 | 0.73 | 0.74 | 294 |
-| Web Attack – XSS | 0.37 | 0.38 | 0.37 | 130 |
-| Infiltration | 1.00 | 0.71 | 0.83 | 7 |
-| Web Attack – Sql Injection | 1.00 | 0.25 | 0.40 | 4 |
-| Heartbleed | 0.67 | 1.00 | 0.80 | 2 |
+| DoS Hulk | 1.00 | 1.00 | 1.00 | 34,570 |
+| DoS GoldenEye | 0.99 | 1.00 | 1.00 | 2,057 |
+| DoS slowloris | 1.00 | 1.00 | 1.00 | 1,077 |
+| DoS Slowhttptest | 1.00 | 1.00 | 1.00 | 1,046 |
+| FTP-Patator | 1.00 | 1.00 | 1.00 | 1,186 |
+| SSH-Patator | 0.99 | 1.00 | 1.00 | 644 |
+| PortScan | 0.96 | 0.99 | 0.97 | 391 |
+| Bot | 1.00 | 1.00 | 1.00 | 288 |
+| Web Attack - Brute Force | 0.74 | 0.78 | 0.76 | 294 |
+| Web Attack - XSS | 0.42 | 0.35 | 0.38 | 130 |
+| Infiltration | 1.00 | 1.00 | 1.00 | 7 |
+| Web Attack - Sql Injection | 1.00 | 0.50 | 0.67 | 4 |
+| Heartbleed | 1.00 | 1.00 | 1.00 | 2 |
 
 #### Interpretation of per-class results
 
@@ -521,13 +522,11 @@ Common, high-volume attacks (DDoS, DoS Hulk, FTP-Patator) are identified
 almost perfectly because the model has thousands of representative training
 examples. Less common attack types are identified less reliably:
 
-- **Bot (F1 = 0.69)** — botnet traffic overlaps statistically with some
-  benign traffic patterns, making it harder to distinguish.
-- **Web Attack – XSS (F1 = 0.37)** — only 652 rows total; the model does
+- **Web Attack - XSS (F1 = 0.38)** — only 652 rows total; the model does
   not have enough examples to learn consistent patterns.
-- **Web Attack – Sql Injection (F1 = 0.40)** — only 21 rows total. The
+- **Web Attack - Sql Injection (F1 = 0.67)** — only 21 rows total. The
   model catches very few because it has barely seen any examples.
-- **Heartbleed (F1 = 0.80)** — only 11 rows total; performance is
+- **Heartbleed (F1 = 1.00 in this split)** — only 11 rows total; performance is
   statistically unreliable with so little data.
 
 These limitations are honest and expected. They would be disclosed in a
@@ -535,7 +534,7 @@ real system: "Attack type identification is highly accurate for common
 attacks. Rare attack types may be misclassified at the type level, but
 Stage 1 still catches them as malicious."
 
-#### Two-stage pipeline live demo (8 real rows)
+#### Two-stage pipeline live demo (9 real rows)
 
 | Ground truth | Stage 1 | Stage 2 (attack type) | Confidence |
 |---|---|---|---|
@@ -543,15 +542,17 @@ Stage 1 still catches them as malicious."
 | DDoS | malicious | DDoS | 1.00 |
 | DoS Hulk | malicious | DoS Hulk | 1.00 |
 | DoS slowloris | malicious | DoS slowloris | 1.00 |
-| FTP-Patator | malicious | FTP-Patator | 1.00 |
-| SSH-Patator | malicious | *Benign (misclassified)* | 0.73 |
-| PortScan | malicious | PortScan | 0.82 |
+| FTP-Patator | malicious | *Web Attack - XSS (type mismatch)* | 0.83 |
+| SSH-Patator | malicious | SSH-Patator | 1.00 |
+| PortScan | malicious | PortScan | 1.00 |
 | Bot | malicious | Bot | 1.00 |
+| Web Attack - XSS | malicious | Web Attack - XSS | 1.00 |
 
-SSH-Patator is correctly flagged as malicious by Stage 1 but
-misclassified as Benign by Stage 2. This is consistent with the per-class
-results: SSH-Patator creates slow, low-volume flows that resemble normal
-SSH usage. The binary alarm still fires — only the type label is wrong.
+The demo now confirms the intended architecture: Stage 2 no longer returns
+Benign because it was trained only on malicious rows. One selected
+FTP-Patator row is still classified as Web Attack - XSS. This is a model
+type-level error, not a pipeline failure: the binary alarm still fires and
+the second model returns an attack-only label.
 
 #### Additional files saved
 
@@ -562,4 +563,4 @@ SSH usage. The binary alarm still fires — only the type label is wrong.
 | `models/attack_type_metrics.json` | Per-class metrics in machine-readable form |
 | `src/train_attack_classifier.py` | Training script |
 | `src/predict.py` (updated) | Now includes `identify_attack_type()` and updated `load_pipeline()` |
-
+| `src/run_two_stage_demo.py` | Demo for Stage 1 plus attack-only Stage 2 |

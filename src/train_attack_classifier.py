@@ -11,9 +11,9 @@ What this script does (plain English):
     Stage 1 (binary model)       → "Is this malicious?"
     Stage 2 (multi-class model)  → "What kind of attack is it?"
 
-  This second model is trained on ALL rows (including Benign) using the
-  same 77 features. It predicts one of 15 possible labels:
-    Benign, DDoS, DoS Hulk, DoS GoldenEye, DoS slowloris,
+  This second model is trained only on malicious rows using the same 77
+  features. It predicts one of 14 possible attack labels:
+    DDoS, DoS Hulk, DoS GoldenEye, DoS slowloris,
     DoS Slowhttptest, FTP-Patator, SSH-Patator, PortScan,
     Web Attack – Brute Force, Web Attack – XSS,
     Web Attack – Sql Injection, Bot, Infiltration, Heartbleed.
@@ -49,6 +49,15 @@ N_ESTIMATORS = 100
 TEST_SIZE    = 0.20
 NON_FEATURE_COLS = ["attack_type", "is_malicious"]
 
+LABEL_REPLACEMENTS = {
+    "Web Attack � Brute Force": "Web Attack - Brute Force",
+    "Web Attack � Sql Injection": "Web Attack - Sql Injection",
+    "Web Attack � XSS": "Web Attack - XSS",
+    "Web Attack – Brute Force": "Web Attack - Brute Force",
+    "Web Attack – Sql Injection": "Web Attack - Sql Injection",
+    "Web Attack – XSS": "Web Attack - XSS",
+}
+
 
 def load_all_parquet(data_dir: str) -> pd.DataFrame:
     files = sorted(f for f in os.listdir(data_dir) if f.endswith(".parquet"))
@@ -72,6 +81,12 @@ def main() -> None:
     print("Step 1: Loading processed data")
     print("=" * 60)
     df = load_all_parquet(DATA_DIR)
+    df["attack_type"] = df["attack_type"].replace(LABEL_REPLACEMENTS)
+    df = df[df["is_malicious"] == 1].copy()
+    if df.empty:
+        raise ValueError("No malicious rows found for attack-type training.")
+
+    print(f"\nTraining Stage 2 on malicious rows only: {len(df):,} rows")
 
     print("\nAttack type distribution:")
     for label, count in df["attack_type"].value_counts().items():
@@ -127,7 +142,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     print("\n" + "=" * 60)
     print("Step 5: Training multi-class Random Forest")
-    print("  (100 trees, 15 classes — may take a few minutes)")
+    print("  (100 trees, 14 attack classes — may take a few minutes)")
     print("=" * 60)
 
     clf = RandomForestClassifier(
@@ -197,6 +212,7 @@ def main() -> None:
 
     with open(METRICS_PATH, "w") as fh:
         json.dump(metrics, fh, indent=2)
+        fh.write("\n")
     print(f"  Metrics saved to: {METRICS_PATH}")
 
     print("\n" + "=" * 60)

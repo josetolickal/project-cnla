@@ -9,18 +9,34 @@ Flask dashboard.
 
 - `data/` — downloaded and processed datasets. Dataset files are not committed
   to Git because they can be large.
-- `models/` — saved trained machine-learning models. These are generated later.
+- `models/` — saved trained machine-learning models and metric JSON files.
 - `src/` — the Python code that will preprocess data, train the model, make
   predictions, and support later modules.
 - `logs/` — generated detection and response logs.
 - `tests/` — small automated checks for the Python code.
 - `PROJECT_CONTEXT.md` — the agreed project requirements and milestone plan.
 
-## Current milestone
+## Current status
 
-Milestone 3 is complete: the CICIDS2017 data has been inspected, validated,
-and saved in a processed binary-classification format. The next milestone is a
-baseline Random Forest model. No model has been trained yet.
+Milestones 1-5 are complete:
+
+- CICIDS2017 data has been inspected, validated, and saved as processed
+  Parquet files.
+- A binary Random Forest classifier detects benign vs malicious traffic.
+- A second attack-only Random Forest classifier identifies the specific
+  attack type after Stage 1 flags a flow as malicious.
+- `src/predict.py` loads both models and exposes the reusable prediction
+  functions.
+- Demo scripts are available for binary prediction and the two-stage pipeline.
+
+Current model artifacts:
+
+- `models/random_forest_baseline.joblib`
+- `models/attack_type_classifier.joblib`
+- `models/attack_type_label_encoder.joblib`
+- `models/feature_names.json`
+- `models/baseline_metrics.json`
+- `models/attack_type_metrics.json`
 
 ## Setup
 
