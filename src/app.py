@@ -23,6 +23,7 @@ from src.predict import load_pipeline, predict_flow, identify_attack_type
 from src.explain import explain_flow
 from src.risk_engine import calculate_risk
 from src.response import responder
+from src.log_correlator import correlate_ip_with_system_logs
 from src.setup_dev_models import ensure_models_and_samples
 
 app = Flask(
@@ -75,17 +76,22 @@ def process_flow_event(
             attack_type = attack_res["attack_type"]
             confidence = attack_res["confidence"]
 
-    # 3. Threat Risk Engine (Milestone 7)
+    # 3. Linux Host Log Correlation (Milestone 9)
+    log_corr = correlate_ip_with_system_logs(source_ip)
+    log_boost = log_corr["boost"] if pred["is_malicious"] == 1 else 0.0
+
+    # 4. Threat Risk Engine (Milestone 7)
     risk = calculate_risk(
         is_malicious=pred["is_malicious"],
         probability=pred["probability"],
         attack_type=attack_type if pred["is_malicious"] == 1 else None,
+        log_correlation_boost=log_boost,
     )
 
-    # 4. Explainable AI (Milestone 6 SHAP)
+    # 5. Explainable AI (Milestone 6 SHAP)
     explanation = explain_flow(flow_data, pipeline, top_k=4)
 
-    # 5. Automated Threat Response (Milestone 10)
+    # 6. Automated Threat Response (Milestone 10)
     response_result = responder.evaluate_and_respond(
         source_ip=source_ip,
         risk_level=risk["risk_level"],
@@ -107,6 +113,7 @@ def process_flow_event(
         "risk_score": risk["risk_score"],
         "risk_level": risk["risk_level"],
         "risk_rationale": risk["rationale"],
+        "log_correlation": log_corr,
         "summary": explanation["summary"],
         "top_attack_drivers": explanation["top_attack_drivers"],
         "top_benign_drivers": explanation["top_benign_drivers"],

@@ -18,7 +18,7 @@ Flask dashboard.
 
 ## Current status
 
-Milestones 1-7, 10, and 11 are complete:
+Milestones 1-7, 9, 10, and 11 are complete:
 
 - CICIDS2017 data has been inspected, validated, and saved as processed
   Parquet files.
@@ -31,12 +31,14 @@ Milestones 1-7, 10, and 11 are complete:
   classified as malicious or benign.
 - `src/risk_engine.py` calculates a transparent threat score and assigns
   threat levels (LOW, MEDIUM, HIGH, CRITICAL).
+- `src/log_correlator.py` correlates host authentication logs (`/var/log/auth.log`)
+  with network detections to dynamically escalate threat levels.
 - `src/response.py` executes automated mitigation with safe dry-run mode and
   hardcoded IP whitelisting.
 - `src/app.py` and `src/templates/index.html` deliver a real-time web dashboard
   for live detection monitoring, interactive SHAP visualization, and firewall
   management.
-- 12 automated unit and integration tests verify the pipeline.
+- 15 automated unit and integration tests verify the pipeline.
 
 Current model artifacts:
 

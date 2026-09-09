@@ -703,4 +703,37 @@ Created `src/app.py` and `src/templates/index.html`:
 ### Verified Test Results
 
 - All 6 dashboard test cases in `tests/test_dashboard_app.py` passed in 0.10s.
-- Total test suite (`tests/`): 12 automated unit and integration tests passing.
+- Total test suite (`tests/`): 15 automated unit and integration tests passing.
+
+---
+
+## Milestone 9 — Linux System Log Correlation
+
+### Goal
+
+Enhance intrusion confidence by cross-referencing network-level anomalies
+with host-level Linux authentication activity. If a remote attacker attempts
+to brute-force SSH logins, evidence appears both in network packet flow
+characteristics and in the host server's authentication syslog.
+
+### Implementation (`src/log_correlator.py`)
+
+- **Multi-Environment Log Detection**:
+  - Automatically inspects Linux standard logs (`/var/log/auth.log`, `/var/log/secure`,
+    or systemd journal) when running on Linux.
+  - Automatically falls back to `logs/auth.log` on development/testing setups.
+- **Log Parsing**:
+  - Uses regular expressions to extract failed login attempts, targeted usernames
+    (e.g., `root`, `admin`), source IP addresses, and timestamps.
+- **Dynamic Risk Score Escalation**:
+  - When network detection flags an attack and host authentication logs confirm
+    simultaneous failed login attempts from the same source IP:
+    - 1–2 failed attempts: adds `+0.08` risk boost.
+    - 3–9 failed attempts: adds `+0.15` risk boost.
+    - 10+ failed attempts: adds `+0.20` risk boost.
+  - This escalates borderline probes into confirmed **HIGH** or **CRITICAL** incidents.
+
+### Verified Test Results
+
+- All 3 correlation unit tests in `tests/test_log_correlator.py` passed.
+- Integrated seamlessly into `src/app.py` event processing.
