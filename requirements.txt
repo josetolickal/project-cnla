@@ -6,3 +6,6 @@ joblib>=1.4
 
 # Read the CICIDS2017 mirror's Parquet dataset files
 pyarrow>=18.0
+
+# Explainable AI (Milestone 6)
+shap>=0.50

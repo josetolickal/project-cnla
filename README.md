@@ -18,7 +18,7 @@ Flask dashboard.
 
 ## Current status
 
-Milestones 1-5 are complete:
+Milestones 1-7 are complete:
 
 - CICIDS2017 data has been inspected, validated, and saved as processed
   Parquet files.
@@ -27,7 +27,12 @@ Milestones 1-5 are complete:
   attack type after Stage 1 flags a flow as malicious.
 - `src/predict.py` loads both models and exposes the reusable prediction
   functions.
-- Demo scripts are available for binary prediction and the two-stage pipeline.
+- `src/explain.py` integrates SHAP explainability to explain why a flow was
+  classified as malicious or benign.
+- `src/risk_engine.py` calculates a transparent threat score and assigns
+  threat levels (LOW, MEDIUM, HIGH, CRITICAL).
+- Automated tests (`tests/test_xai_and_risk.py`) and an integrated demo
+  (`src/run_xai_and_risk_demo.py`) verify the pipeline.
 
 Current model artifacts:
 

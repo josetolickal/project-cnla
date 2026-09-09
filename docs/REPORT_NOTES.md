@@ -564,3 +564,85 @@ the second model returns an attack-only label.
 | `src/train_attack_classifier.py` | Training script |
 | `src/predict.py` (updated) | Now includes `identify_attack_type()` and updated `load_pipeline()` |
 | `src/run_two_stage_demo.py` | Demo for Stage 1 plus attack-only Stage 2 |
+
+---
+
+## Milestone 6 — Explainability (SHAP)
+
+### Goal
+
+Provide human-understandable explanations for individual model predictions.
+Security analysts and presentation examiners must be able to ask:
+*"Why did the system flag this network flow as an attack?"*
+and receive a clear, verifiable list of contributing features rather than
+treating the classifier as an unexplained black box.
+
+### What SHAP is (plain English)
+
+SHAP (SHapley Additive exPlanations) is based on cooperative game theory.
+Imagine a football team wins a match; Shapley values calculate how much credit
+each individual player deserves for that victory.
+
+In intrusion detection, each network feature (like packet rate, byte count,
+or flag count) is a "player", and the prediction ("malicious" vs "benign")
+is the match outcome. SHAP calculates the exact contribution of each feature:
+- **Positive SHAP value (+)**: Pushed the prediction toward **malicious**.
+  (e.g., abnormally high `Flow Packets/s` or large `Init Fwd Win Bytes`).
+- **Negative SHAP value (-)**: Pushed the prediction toward **benign**.
+  (e.g., normal flow duration or standard packet lengths).
+
+### Implementation
+
+Created `src/explain.py`:
+- `get_tree_explainer(model)`: Builds and caches a `shap.TreeExplainer` for the
+  Random Forest model so that inference remains fast.
+- `explain_flow(flow, pipeline, top_k=5)`: Evaluates a traffic flow, generates
+  local SHAP values for the malicious class, and ranks features into:
+  - `top_attack_drivers`: Features that strongly increased attack probability.
+  - `top_benign_drivers`: Features that exhibited normal characteristics.
+  - Plain-English natural language summary for quick understanding.
+- `format_explanation_table()`: Formats results into a clean CLI table or log.
+
+---
+
+## Milestone 7 — Threat Risk Engine
+
+### Goal
+
+Convert raw machine learning probabilities and attack classifications into
+an actionable, transparent security risk level:
+**LOW**, **MEDIUM**, **HIGH**, or **CRITICAL**.
+
+### Transparent Scoring Logic
+
+Rather than fabricating an obscure score, the system applies a documented,
+reproducible composite formula:
+
+$$\text{Risk Score} = (P_{\text{malicious}} \times 0.60) + (\text{Attack Severity Weight} \times 0.40) + \text{Log Boost}$$
+
+- **Probability Weight (60 %)**: Model statistical confidence.
+- **Attack Severity Weight (40 %)**: Inherent real-world danger of the attack:
+  - `Benign`: 0.00
+  - `PortScan`: 0.30 (Reconnaissance / probing)
+  - `FTP-Patator` / `SSH-Patator` / `Web Attack`: 0.50 - 0.60 (Brute force / injection)
+  - `DoS Hulk` / `DoS GoldenEye` / `Bot`: 0.75 - 0.80 (Active denial of service)
+  - `DDoS` / `Heartbleed` / `SQL Injection`: 0.95 (Severe volumetric / exfiltration)
+- **Log Correlation Boost**: Allows Milestone 9 host log evidence to dynamically
+  escalate risk.
+
+### Risk Level Mapping
+
+| Range | Threat Level | Operational Meaning |
+|---|---|---|
+| `0.00 – 0.35` | **LOW** | Normal traffic or low-impact exploratory scans |
+| `0.35 – 0.65` | **MEDIUM** | Password guessing / brute-force authentication attempts |
+| `0.65 – 0.85` | **HIGH** | Active denial of service or botnet command-and-control |
+| `0.85 – 1.00` | **CRITICAL** | Volumetric DDoS outage or remote database exploitation |
+
+### Verified Test Results
+
+- All 6 unit tests in `tests/test_xai_and_risk.py` passed in 0.04s.
+- End-to-end demo `src/run_xai_and_risk_demo.py` confirms that:
+  - Benign flows register as **LOW** risk with negative SHAP drivers.
+  - DDoS flows register as **CRITICAL** risk (0.9200) with positive SHAP drivers
+    (`Init Fwd Win Bytes`, `Flow Bytes/s`, `Flow Packets/s`).
