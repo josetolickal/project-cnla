@@ -352,3 +352,94 @@ def simulate_packet_capture_stream(scenario: str = "DDoS", packet_count: int = 2
     # Flush completed flow
     flows = extractor.flush_expired_flows(current_time=t + 10.0)
     return flows[0] if flows else {}
+
+
+def process_scapy_packet(pkt: Any, extractor: FlowExtractor) -> Optional[Dict[str, float]]:
+    """
+    Parse a live Scapy network packet and feed it to the flow extractor.
+    Returns the completed 77-feature dictionary if the flow finishes.
+    """
+    try:
+        from scapy.layers.inet import IP, TCP, UDP
+    except ImportError:
+        return None
+
+    if IP not in pkt:
+        return None
+
+    src_ip = str(pkt[IP].src)
+    dst_ip = str(pkt[IP].dst)
+    proto = int(pkt[IP].proto)
+    length = len(pkt)
+    timestamp = float(getattr(pkt, "time", time.time()))
+
+    src_port = 0
+    dst_port = 0
+    flags = {}
+    win_size = 0
+
+    if TCP in pkt:
+        src_port = int(pkt[TCP].sport)
+        dst_port = int(pkt[TCP].dport)
+        tcp_flags = pkt[TCP].flags
+        flags = {
+            "FIN": 1 if "F" in str(tcp_flags) else 0,
+            "SYN": 1 if "S" in str(tcp_flags) else 0,
+            "RST": 1 if "R" in str(tcp_flags) else 0,
+            "PSH": 1 if "P" in str(tcp_flags) else 0,
+            "ACK": 1 if "A" in str(tcp_flags) else 0,
+            "URG": 1 if "U" in str(tcp_flags) else 0,
+            "ECE": 1 if "E" in str(tcp_flags) else 0,
+            "CWE": 1 if "C" in str(tcp_flags) else 0,
+        }
+        win_size = int(pkt[TCP].window)
+    elif UDP in pkt:
+        src_port = int(pkt[UDP].sport)
+        dst_port = int(pkt[UDP].dport)
+
+    return extractor.process_packet(
+        src_ip=src_ip,
+        dst_ip=dst_ip,
+        src_port=src_port,
+        dst_port=dst_port,
+        protocol=proto,
+        length=length,
+        timestamp=timestamp,
+        flags=flags,
+        win_size=win_size,
+    )
+
+
+def start_live_capture(
+    interface: Optional[str] = None,
+    packet_count: int = 50,
+    flow_callback: Optional[Any] = None,
+) -> List[Dict[str, float]]:
+    """
+    Listen on a physical network interface (e.g. eth0 / wlan0), aggregate
+    packets into flows, and dispatch completed flows to the callback.
+    Requires administrator/root privileges to access raw sockets.
+    """
+    try:
+        from scapy.all import sniff
+    except ImportError:
+        print("[!] Scapy not installed. Run: pip install scapy")
+        return []
+
+    extractor = FlowExtractor(flow_timeout_sec=3.0)
+    completed_flows = []
+
+    def _packet_handler(pkt):
+        flow = process_scapy_packet(pkt, extractor)
+        if flow:
+            completed_flows.append(flow)
+            if flow_callback:
+                flow_callback(flow)
+
+    print(f"[*] Starting live sniffing on interface '{interface or 'default'}' (Count: {packet_count})...")
+    sniff(iface=interface, prn=_packet_handler, count=packet_count, store=False)
+
+    # Flush any remaining flows
+    remaining = extractor.flush_expired_flows()
+    completed_flows.extend(remaining)
+    return completed_flows
