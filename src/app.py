@@ -51,6 +51,90 @@ IP_POOL = {
     "SSH-Patator": ["45.33.32.156", "185.190.141.22"],
 }
 
+# ---------------------------------------------------------------------------
+# Plain-English Human Friendly Translations for Non-Technical Users
+# ---------------------------------------------------------------------------
+
+def get_friendly_device_origin(ip: str) -> Dict[str, str]:
+    """Translate cryptic IP addresses into human-readable device/network terms."""
+    if ip in ("127.0.0.1", "localhost", "::1"):
+        return {"name": "💻 This Computer (Self)", "category": "Internal Machine"}
+    elif ip.startswith("192.168.") or ip.startswith("10.") or ip.startswith("172.16."):
+        return {"name": f"🏠 Local Home/Office Device ({ip})", "category": "Trusted Local Wi-Fi"}
+    elif ip.startswith("203.0.") or ip.startswith("198.51.") or ip.startswith("185."):
+        return {"name": f"⚠️ Suspicious External Machine ({ip})", "category": "Public Internet (Untrusted)"}
+    else:
+        return {"name": f"🌐 External Computer ({ip})", "category": "Public Internet"}
+
+
+FRIENDLY_ATTACK_TRANSLATIONS = {
+    "Benign": {
+        "title": "✅ Safe & Normal Activity",
+        "badge": "SAFE",
+        "description": "Normal, everyday internet activity such as loading web pages, watching video, or office work.",
+        "advice": "Everything is running smoothly and safely. No action required.",
+        "icon": "fa-circle-check",
+        "color": "emerald",
+    },
+    "DDoS": {
+        "title": "💥 Giant Traffic Flood Attack (DDoS)",
+        "badge": "CRITICAL DANGER",
+        "description": "An attacker is bombarding your computer with a massive flood of data in an attempt to crash your internet connection or freeze the machine.",
+        "advice": "Danger Mitigated: Our system detected this overload and automatically blocked this computer. You do not need to do anything.",
+        "icon": "fa-burst",
+        "color": "red",
+    },
+    "SSH-Patator": {
+        "title": "🔑 Password Guessing Attack (SSH)",
+        "badge": "UNAUTHORIZED LOGIN",
+        "description": "A remote machine is trying to break into your computer by guessing account passwords over and over in rapid succession.",
+        "advice": "Action Recommendation: Make sure your computer user password is strong (at least 12 characters with letters, numbers, and symbols).",
+        "icon": "fa-key",
+        "color": "purple",
+    },
+    "FTP-Patator": {
+        "title": "🔑 File Server Password Guessing",
+        "badge": "UNAUTHORIZED LOGIN",
+        "description": "Someone is repeatedly trying common passwords to break into your file storage folders.",
+        "advice": "Action Recommendation: Use a strong passphrase and disable file sharing if you are not actively using it.",
+        "icon": "fa-folder-lock",
+        "color": "purple",
+    },
+    "PortScan": {
+        "title": "🔍 Digital Peeping / Scanning",
+        "badge": "RECONNAISSANCE",
+        "description": "Someone is snooping around your network to check which 'doors and windows' (network ports) might have been accidentally left open.",
+        "advice": "Informational: The outsider is just looking around. No system breach occurred. The system is actively keeping watch.",
+        "icon": "fa-magnifying-glass",
+        "color": "amber",
+    },
+    "DoS Hulk": {
+        "title": "🛑 Heavy Server Overload Attempt",
+        "badge": "OVERLOAD",
+        "description": "An attacker is sending endless heavy requests to try to make your computer freeze and stop responding.",
+        "advice": "The system identified the overload pattern and throttled the suspicious connection.",
+        "icon": "fa-hand",
+        "color": "orange",
+    },
+    "Bot": {
+        "title": "🤖 Infected Botnet Computer",
+        "badge": "HOSTILE BOT",
+        "description": "A remote computer infected by hacker malware is attempting to recruit or probe your computer.",
+        "advice": "The infected machine's requests were flagged and isolated.",
+        "icon": "fa-robot",
+        "color": "orange",
+    },
+}
+
+DEFAULT_FRIENDLY_ATTACK = {
+    "title": "⚠️ Suspicious Network Anomaly",
+    "badge": "SUSPICIOUS",
+    "description": "Unusual network communication that does not match standard everyday internet traffic.",
+    "advice": "The activity was flagged and inspected for safety.",
+    "icon": "fa-triangle-exclamation",
+    "color": "amber",
+}
+
 
 def process_flow_event(
     flow_data: Dict[str, Any],
@@ -99,16 +183,49 @@ def process_flow_event(
         attack_type=attack_type,
     )
 
+    device_info = get_friendly_device_origin(source_ip)
+    friendly_attack = FRIENDLY_ATTACK_TRANSLATIONS.get(attack_type, DEFAULT_FRIENDLY_ATTACK)
+
+    # Simplified risk description for everyday users
+    if risk["risk_level"] == "CRITICAL":
+        simple_risk_label = "🔴 DANGEROUS ATTACK"
+        simple_risk_color = "red"
+    elif risk["risk_level"] == "HIGH":
+        simple_risk_label = "🟠 HIGH RISK INCIDENT"
+        simple_risk_color = "orange"
+    elif risk["risk_level"] == "MEDIUM":
+        simple_risk_label = "🟡 SUSPICIOUS ACTIVITY"
+        simple_risk_color = "yellow"
+    else:
+        simple_risk_label = "🟢 SAFE & NORMAL"
+        simple_risk_color = "emerald"
+
+    # Simplified action status
+    if response_result["action_taken"] in ("ACTIVE_BLOCK", "SIMULATED_BLOCK"):
+        simple_mitigation = "🛡️ Blocked Automatically (Protected)"
+    else:
+        simple_mitigation = "👁️ Monitored (Safe)"
+
     event = {
         "id": EVENT_COUNTER,
         "timestamp": time.strftime("%H:%M:%S"),
         "source_ip": source_ip,
+        "friendly_source": device_info["name"],
+        "device_category": device_info["category"],
         "dest_ip": dest_ip,
         "dest_port": dest_port,
         "is_malicious": pred["is_malicious"],
         "label": pred["label"],
         "probability": pred["probability"],
         "attack_type": attack_type,
+        "friendly_attack_title": friendly_attack["title"],
+        "friendly_attack_badge": friendly_attack["badge"],
+        "friendly_attack_desc": friendly_attack["description"],
+        "friendly_attack_icon": friendly_attack["icon"],
+        "action_advice": friendly_attack["advice"],
+        "simple_risk_label": simple_risk_label,
+        "simple_risk_color": simple_risk_color,
+        "simple_mitigation": simple_mitigation,
         "confidence": round(confidence, 4),
         "risk_score": risk["risk_score"],
         "risk_level": risk["risk_level"],

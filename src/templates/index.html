@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Network Intrusion Detection System — Dashboard</title>
+  <title>Automated Network Intrusion Detection System — Dashboard</title>
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js for XAI and Threat Charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Phosphor / FontAwesome icons -->
+  <!-- FontAwesome icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
     tailwind.config = {
@@ -45,27 +45,44 @@
   <!-- Top Navigation Bar -->
   <header class="border-b border-cyber-700/80 bg-cyber-800/90 backdrop-blur sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Left: Logo & Title -->
       <div class="flex items-center space-x-3">
         <div class="w-10 h-10 rounded-lg bg-cyber-accent/10 border border-cyber-accent/40 flex items-center justify-center text-cyber-accent text-xl">
           <i class="fa-solid fa-shield-halved"></i>
         </div>
         <div>
-          <h1 class="text-lg font-bold tracking-wide text-white flex items-center gap-2">
+          <h1 class="text-base sm:text-lg font-bold tracking-wide text-white flex items-center gap-2">
             Automated Linux NIDS
-            <span class="text-xs font-semibold px-2 py-0.5 rounded bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/30">v2.0 XAI</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/30">AI Protection</span>
           </h1>
-          <p class="text-xs text-slate-400">Random Forest + SHAP Explainability + Threat Risk Engine</p>
+          <p class="text-xs text-slate-400">Intelligent Threat Detection & Plain-English Explainability</p>
         </div>
       </div>
 
-      <div class="flex items-center space-x-4">
-        <div class="flex items-center space-x-2 bg-cyber-900 px-3 py-1.5 rounded-lg border border-cyber-700">
+      <!-- Right: Mode Toggle & Status Badges -->
+      <div class="flex items-center space-x-3 sm:space-x-4">
+        
+        <!-- Simple vs Expert Mode Switch -->
+        <div class="flex items-center bg-cyber-900 p-1 rounded-lg border border-cyber-700">
+          <button id="btnModeSimple" onclick="setDashboardMode('simple')" class="px-2.5 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 bg-cyber-accent text-cyber-900 shadow">
+            <i class="fa-solid fa-user"></i>
+            <span>Simple Mode</span>
+          </button>
+          <button id="btnModeExpert" onclick="setDashboardMode('expert')" class="px-2.5 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+            <i class="fa-solid fa-terminal"></i>
+            <span>Expert Mode</span>
+          </button>
+        </div>
+
+        <div class="hidden md:flex items-center space-x-2 bg-cyber-900 px-3 py-1.5 rounded-lg border border-cyber-700">
           <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse-slow"></span>
           <span class="text-xs font-medium text-slate-300">Live Sniffer Active</span>
         </div>
-        <div id="dryRunBadge" class="flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs px-3 py-1.5 rounded-lg">
+
+        <div id="dryRunBadge" class="flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs px-2.5 py-1.5 rounded-lg">
           <i class="fa-solid fa-shield-heart"></i>
-          <span>Dry-Run Safe Mode: ON</span>
+          <span class="hidden sm:inline">Safe Dry-Run: ON</span>
         </div>
       </div>
     </div>
@@ -79,74 +96,74 @@
       <!-- Total Flows -->
       <div class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Flows</span>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400" id="cardTitleTotal">Total Network Messages</span>
           <div class="text-cyber-accent bg-cyber-accent/10 p-2 rounded-lg">
             <i class="fa-solid fa-network-wired text-sm"></i>
           </div>
         </div>
         <div class="mt-2 text-3xl font-extrabold text-white" id="statTotalFlows">0</div>
-        <p class="text-xs text-slate-400 mt-1">77 CICFlowMeter features inspected</p>
+        <p class="text-xs text-slate-400 mt-1" id="cardSubTotal">Inspected for safety</p>
       </div>
 
       <!-- Attacks Detected -->
       <div class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Attacks Detected</span>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400" id="cardTitleAttacks">Threats Blocked / Flagged</span>
           <div class="text-cyber-critical bg-cyber-critical/10 p-2 rounded-lg">
             <i class="fa-solid fa-triangle-exclamation text-sm"></i>
           </div>
         </div>
         <div class="mt-2 text-3xl font-extrabold text-cyber-critical" id="statAttacks">0</div>
-        <p class="text-xs text-slate-400 mt-1" id="statMaliciousRatio">0.0% malicious ratio</p>
+        <p class="text-xs text-slate-400 mt-1" id="statMaliciousRatio">0.0% threats found</p>
       </div>
 
-      <!-- Threat Level -->
+      <!-- Overall Threat Level -->
       <div class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Highest Threat Level</span>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Current Security State</span>
           <div class="text-cyber-high bg-cyber-high/10 p-2 rounded-lg">
-            <i class="fa-solid fa-gauge-high text-sm"></i>
+            <i class="fa-solid fa-shield-cat text-sm"></i>
           </div>
         </div>
-        <div class="mt-2 text-3xl font-extrabold" id="statThreatLevel">LOW</div>
-        <p class="text-xs text-slate-400 mt-1">Evaluated by Threat Risk Engine</p>
+        <div class="mt-2 text-2xl font-extrabold" id="statThreatLevel">🟢 ALL SAFE</div>
+        <p class="text-xs text-slate-400 mt-1" id="cardSubThreat">AI security evaluation</p>
       </div>
 
       <!-- Firewall Mitigations -->
       <div class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Mitigated Addresses</span>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Blocked Computers</span>
           <div class="text-emerald-400 bg-emerald-400/10 p-2 rounded-lg">
             <i class="fa-solid fa-user-lock text-sm"></i>
           </div>
         </div>
         <div class="mt-2 text-3xl font-extrabold text-emerald-400" id="statBlockedCount">0</div>
-        <p class="text-xs text-slate-400 mt-1">Controlled iptables actions</p>
+        <p class="text-xs text-slate-400 mt-1">Shielded from reaching you</p>
       </div>
     </div>
 
-    <!-- Quick Traffic Simulation Toolbar -->
+    <!-- Quick Simulation Bar -->
     <div class="bg-cyber-800/90 border border-cyber-700 p-4 rounded-xl flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center space-x-2">
         <span class="text-xs font-bold uppercase text-slate-300 flex items-center gap-1.5">
-          <i class="fa-solid fa-bolt text-amber-400"></i> Inject Live Simulation:
+          <i class="fa-solid fa-bolt text-amber-400"></i> Try A Simulation:
         </span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <button onclick="injectTraffic('Benign')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 transition">
-          <i class="fa-solid fa-check mr-1"></i> Normal Traffic
+          <i class="fa-solid fa-check mr-1"></i> 1. Normal Web Surfing
         </button>
         <button onclick="injectTraffic('DDoS')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30 transition">
-          <i class="fa-solid fa-burst mr-1"></i> DDoS Flood
+          <i class="fa-solid fa-burst mr-1"></i> 2. Massive Traffic Flood
         </button>
         <button onclick="injectTraffic('PortScan')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30 transition">
-          <i class="fa-solid fa-magnifying-glass mr-1"></i> PortScan Probe
+          <i class="fa-solid fa-magnifying-glass mr-1"></i> 3. Door-Peeping / Scan
         </button>
         <button onclick="injectTraffic('SSH-Patator')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30 transition">
-          <i class="fa-solid fa-key mr-1"></i> SSH Brute-Force
+          <i class="fa-solid fa-key mr-1"></i> 4. Password Guessing
         </button>
         <button id="btnAutoStream" onclick="toggleAutoStream()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyber-700 text-slate-300 border border-cyber-600 hover:bg-cyber-600 transition">
-          <i class="fa-solid fa-play mr-1"></i> Auto Stream: OFF
+          <i class="fa-solid fa-play mr-1"></i> Auto-Simulate: OFF
         </button>
       </div>
     </div>
@@ -159,23 +176,16 @@
         <div class="bg-cyber-800/80 border border-cyber-700 rounded-xl overflow-hidden">
           <div class="p-4 border-b border-cyber-700 flex items-center justify-between">
             <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <i class="fa-solid fa-list-check text-cyber-accent"></i> Real-Time Detection Feed
+              <i class="fa-solid fa-list-check text-cyber-accent"></i> 
+              <span id="tableTitle">Live Activity Log</span>
             </h2>
-            <span class="text-xs text-slate-400">Click any flow to inspect SHAP explanation</span>
+            <span class="text-xs text-slate-400">Click any row for plain-English explanation</span>
           </div>
 
-          <div class="overflow-x-auto max-h-[560px] overflow-y-auto">
+          <div class="overflow-x-auto max-h-[580px] overflow-y-auto">
             <table class="w-full text-left text-xs">
-              <thead class="bg-cyber-900/60 text-slate-400 uppercase tracking-wider border-b border-cyber-700 sticky top-0 backdrop-blur">
-                <tr>
-                  <th class="py-2.5 px-3">Time</th>
-                  <th class="py-2.5 px-3">Source IP</th>
-                  <th class="py-2.5 px-3">Category</th>
-                  <th class="py-2.5 px-3">Risk Tier</th>
-                  <th class="py-2.5 px-3">Score</th>
-                  <th class="py-2.5 px-3">Mitigation</th>
-                  <th class="py-2.5 px-3 text-right">Action</th>
-                </tr>
+              <thead class="bg-cyber-900/60 text-slate-400 uppercase tracking-wider border-b border-cyber-700 sticky top-0 backdrop-blur" id="tableHeader">
+                <!-- Dynamically swapped based on Simple vs Expert mode -->
               </thead>
               <tbody id="trafficTableBody" class="divide-y divide-cyber-700/50">
                 <!-- Populated dynamically via JS -->
@@ -185,26 +195,80 @@
         </div>
       </div>
 
-      <!-- Right Column: Explainable AI & Firewall Inspector (5 Cols) -->
+      <!-- Right Column: Inspector Panel (5 Cols) -->
       <div class="lg:col-span-5 space-y-6">
 
-        <!-- SHAP Explainable AI Card -->
-        <div class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl space-y-4">
-          <div class="flex items-center justify-between border-b border-cyber-700 pb-3">
-            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <i class="fa-solid fa-brain text-cyber-accent"></i> Explainable AI (SHAP)
-            </h2>
-            <span id="selectedFlowId" class="text-xs px-2 py-0.5 rounded bg-cyber-700 text-slate-300">Flow #1</span>
+        <!-- Explanation Card (Swaps dynamically between Simple & Expert mode) -->
+        <div class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl space-y-4" id="inspectorCard">
+          
+          <!-- Simple Mode View -->
+          <div id="simpleInspectorView" class="space-y-4">
+            <div class="flex items-center justify-between border-b border-cyber-700 pb-3">
+              <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-circle-question text-cyber-accent"></i> What Happened Here?
+              </h2>
+              <span id="simpleBadgeTag" class="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                SAFE
+              </span>
+            </div>
+
+            <!-- Big Friendly Status Banner -->
+            <div id="simpleStatusBanner" class="p-4 rounded-xl border flex items-start gap-3 bg-emerald-500/10 border-emerald-500/30 text-emerald-300">
+              <div class="text-2xl mt-0.5" id="simpleStatusIcon"><i class="fa-solid fa-shield-check"></i></div>
+              <div>
+                <h3 class="font-bold text-sm" id="simpleStatusTitle">Safe & Normal Activity</h3>
+                <p class="text-xs text-slate-300 mt-1" id="simpleStatusDesc">
+                  Standard internet traffic. Everything is operating normally.
+                </p>
+              </div>
+            </div>
+
+            <!-- Device Origin Box -->
+            <div class="bg-cyber-900/90 p-3 rounded-xl border border-cyber-700 space-y-1 text-xs">
+              <span class="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Originating Device:</span>
+              <p class="font-semibold text-slate-200 flex items-center gap-1.5" id="simpleOriginDevice">
+                🏠 Home / Local Office Device
+              </p>
+              <p class="text-[11px] text-slate-400" id="simpleOriginCategory">Trusted Local Wi-Fi Network</p>
+            </div>
+
+            <!-- Why Did AI Detect This? (Plain English) -->
+            <div class="bg-cyber-900/90 p-3.5 rounded-xl border border-cyber-700 space-y-2 text-xs">
+              <span class="text-slate-400 font-semibold uppercase tracking-wider text-[10px] flex items-center gap-1">
+                <i class="fa-solid fa-brain text-cyber-accent"></i> Why did our AI flag this?
+              </span>
+              <p class="text-slate-300 leading-relaxed" id="simpleAiReason">
+                The flow behaves exactly like normal web traffic. No rapid floods or repeated password attempts were seen.
+              </p>
+            </div>
+
+            <!-- What Should I Do Box -->
+            <div class="bg-cyan-950/40 p-3.5 rounded-xl border border-cyan-700/50 space-y-1.5 text-xs">
+              <span class="text-cyan-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                <i class="fa-solid fa-bell"></i> What Should I Do?
+              </span>
+              <p class="text-slate-200 leading-relaxed font-medium" id="simpleActionAdvice">
+                Everything is running smoothly and safely. No action is required from you.
+              </p>
+            </div>
           </div>
 
-          <div id="xaiDetails">
+          <!-- Expert Mode View (SHAP Charts + Math Details) -->
+          <div id="expertInspectorView" class="space-y-4 hidden">
+            <div class="flex items-center justify-between border-b border-cyber-700 pb-3">
+              <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-brain text-cyber-accent"></i> Explainable AI (SHAP)
+              </h2>
+              <span id="selectedFlowId" class="text-xs px-2 py-0.5 rounded bg-cyber-700 text-slate-300">Flow #1</span>
+            </div>
+
             <div class="space-y-3">
-              <!-- Summary Narrative -->
+              <!-- Technical Summary Narrative -->
               <div class="p-3 bg-cyber-900/80 border border-cyber-700 rounded-lg text-xs leading-relaxed text-slate-300" id="xaiSummary">
                 Select a flow from the table to view the exact features that determined the prediction.
               </div>
 
-              <!-- Risk Gauge Bar -->
+              <!-- Risk Score Bar -->
               <div>
                 <div class="flex justify-between text-xs font-semibold mb-1">
                   <span class="text-slate-400">Risk Severity Score</span>
@@ -230,21 +294,21 @@
         <div class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl space-y-4">
           <div class="flex items-center justify-between border-b border-cyber-700 pb-3">
             <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <i class="fa-solid fa-shield-virus text-emerald-400"></i> Automated Mitigation
+              <i class="fa-solid fa-shield-virus text-emerald-400"></i> Automated Firewall Shield
             </h2>
-            <button onclick="toggleDryRun()" class="text-xs text-cyber-accent hover:underline">Toggle Dry-Run</button>
+            <button onclick="toggleDryRun()" class="text-xs text-cyber-accent hover:underline">Toggle Safe Mode</button>
           </div>
 
           <div class="space-y-3">
             <div class="max-h-36 overflow-y-auto space-y-2" id="blockedIpList">
-              <p class="text-xs text-slate-500 italic">No IPs blocked currently.</p>
+              <p class="text-xs text-slate-500 italic">No devices currently blocked.</p>
             </div>
 
             <!-- Manual IP Block Form -->
             <div class="pt-2 border-t border-cyber-700 flex gap-2">
-              <input id="inputManualIp" type="text" placeholder="192.168.1.xxx" class="bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyber-accent flex-1">
+              <input id="inputManualIp" type="text" placeholder="Enter IP (e.g. 203.0.113.45)" class="bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyber-accent flex-1">
               <button onclick="manualBlockIp()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600/80 hover:bg-red-600 text-white transition">
-                Block IP
+                Block Device
               </button>
             </div>
           </div>
@@ -255,11 +319,74 @@
   </main>
 
   <script>
+    let currentMode = 'simple'; // 'simple' or 'expert'
     let shapChart = null;
     let autoStreamTimer = null;
     let currentEvents = [];
 
-    // Initialize Chart.js
+    // Switch between Simple Mode (Everyday user) and Expert Mode (SOC Analyst)
+    function setDashboardMode(mode) {
+      currentMode = mode;
+      const btnSimple = document.getElementById('btnModeSimple');
+      const btnExpert = document.getElementById('btnModeExpert');
+      const simpleView = document.getElementById('simpleInspectorView');
+      const expertView = document.getElementById('expertInspectorView');
+
+      if (mode === 'simple') {
+        btnSimple.className = 'px-2.5 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 bg-cyber-accent text-cyber-900 shadow';
+        btnExpert.className = 'px-2.5 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 text-slate-400 hover:text-white';
+        simpleView.classList.remove('hidden');
+        expertView.classList.add('hidden');
+        document.getElementById('cardTitleTotal').textContent = 'Total Network Messages';
+        document.getElementById('cardSubTotal').textContent = 'Inspected for safety';
+        document.getElementById('cardTitleAttacks').textContent = 'Threats Blocked / Flagged';
+      } else {
+        btnExpert.className = 'px-2.5 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 bg-cyber-accent text-cyber-900 shadow';
+        btnSimple.className = 'px-2.5 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 text-slate-400 hover:text-white';
+        expertView.classList.remove('hidden');
+        simpleView.classList.add('hidden');
+        document.getElementById('cardTitleTotal').textContent = 'Total Flows Inspected';
+        document.getElementById('cardSubTotal').textContent = '77 CICFlowMeter features';
+        document.getElementById('cardTitleAttacks').textContent = 'Attacks Detected';
+      }
+
+      renderTableHeader();
+      renderTable(currentEvents);
+
+      if (window.selectedEventId) {
+        selectEventById(window.selectedEventId);
+      }
+    }
+
+    function renderTableHeader() {
+      const thead = document.getElementById('tableHeader');
+      if (currentMode === 'simple') {
+        thead.innerHTML = `
+          <tr>
+            <th class="py-2.5 px-3">Time</th>
+            <th class="py-2.5 px-3">Device / Origin</th>
+            <th class="py-2.5 px-3">What Is Happening?</th>
+            <th class="py-2.5 px-3">Safety Status</th>
+            <th class="py-2.5 px-3">Protection Action</th>
+            <th class="py-2.5 px-3 text-right">Details</th>
+          </tr>
+        `;
+      } else {
+        thead.innerHTML = `
+          <tr>
+            <th class="py-2.5 px-3">Time</th>
+            <th class="py-2.5 px-3">Source IP</th>
+            <th class="py-2.5 px-3">Category</th>
+            <th class="py-2.5 px-3">Risk Tier</th>
+            <th class="py-2.5 px-3">Score</th>
+            <th class="py-2.5 px-3">Mitigation</th>
+            <th class="py-2.5 px-3 text-right">Action</th>
+          </tr>
+        `;
+      }
+    }
+
+    // Initialize Chart.js for Expert Mode
     function initShapChart() {
       const ctx = document.getElementById('shapChart').getContext('2d');
       shapChart = new Chart(ctx, {
@@ -267,7 +394,7 @@
         data: {
           labels: [],
           datasets: [{
-            label: 'SHAP Contribution',
+            label: 'SHAP Impact',
             data: [],
             backgroundColor: [],
             borderRadius: 4
@@ -310,7 +437,7 @@
         document.getElementById('statMaliciousRatio').textContent = `${status.malicious_ratio}% malicious ratio`;
         document.getElementById('statBlockedCount').textContent = status.responder.blocked_ips_count;
 
-        // Update highest threat badge
+        // Update overall threat level
         let maxThreat = 'LOW';
         for (const ev of currentEvents) {
           if (ev.risk_level === 'CRITICAL') { maxThreat = 'CRITICAL'; break; }
@@ -318,41 +445,91 @@
           else if (ev.risk_level === 'MEDIUM' && maxThreat === 'LOW') maxThreat = 'MEDIUM';
         }
         const threatElem = document.getElementById('statThreatLevel');
-        threatElem.textContent = maxThreat;
-        threatElem.className = 'mt-2 text-3xl font-extrabold ' + getThreatColor(maxThreat);
+        if (maxThreat === 'CRITICAL') {
+          threatElem.textContent = '🔴 CRITICAL DANGER';
+          threatElem.className = 'mt-2 text-2xl font-extrabold text-red-500';
+        } else if (maxThreat === 'HIGH') {
+          threatElem.textContent = '🟠 HIGH RISK';
+          threatElem.className = 'mt-2 text-2xl font-extrabold text-orange-400';
+        } else if (maxThreat === 'MEDIUM') {
+          threatElem.textContent = '🟡 CAUTION / SUSPICIOUS';
+          threatElem.className = 'mt-2 text-2xl font-extrabold text-yellow-400';
+        } else {
+          threatElem.textContent = '🟢 ALL SAFE';
+          threatElem.className = 'mt-2 text-2xl font-extrabold text-emerald-400';
+        }
 
         // Update Dry Run badge
         const dryBadge = document.getElementById('dryRunBadge');
         if (status.responder.dry_run_mode) {
-          dryBadge.className = 'flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs px-3 py-1.5 rounded-lg';
-          dryBadge.innerHTML = '<i class="fa-solid fa-shield-heart"></i><span>Dry-Run Safe Mode: ON</span>';
+          dryBadge.className = 'flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs px-2.5 py-1.5 rounded-lg';
+          dryBadge.innerHTML = '<i class="fa-solid fa-shield-heart"></i><span>Safe Dry-Run: ON</span>';
         } else {
-          dryBadge.className = 'flex items-center space-x-2 bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-3 py-1.5 rounded-lg';
-          dryBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><span>Firewall Enforce Mode: LIVE</span>';
+          dryBadge.className = 'flex items-center space-x-2 bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-2.5 py-1.5 rounded-lg';
+          dryBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><span>Firewall Enforcing: LIVE</span>';
         }
 
-        // Render Table
         renderTable(currentEvents);
-
-        // Render Blocked IPs
         renderBlockedIps(status.responder.blocked_ips);
 
-        // If nothing selected yet, select first event
         if (currentEvents.length > 0 && (!window.selectedEventId || !currentEvents.find(e => e.id === window.selectedEventId))) {
           selectEvent(currentEvents[0]);
         }
       } catch (err) {
-        console.error("Dashboard refresh failed:", err);
+        console.error("Dashboard refresh error:", err);
       }
     }
 
-    function getThreatColor(level) {
-      switch(level) {
-        case 'CRITICAL': return 'text-red-500';
-        case 'HIGH': return 'text-orange-400';
-        case 'MEDIUM': return 'text-yellow-400';
-        default: return 'text-emerald-400';
-      }
+    function renderTable(events) {
+      const tbody = document.getElementById('trafficTableBody');
+      tbody.innerHTML = '';
+
+      events.forEach(ev => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-cyber-700/40 cursor-pointer transition ' + (window.selectedEventId === ev.id ? 'bg-cyber-700/60' : '');
+        tr.onclick = () => selectEvent(ev);
+
+        if (currentMode === 'simple') {
+          // Non-technical Friendly View
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 font-mono text-slate-400">${ev.timestamp}</td>
+            <td class="py-2.5 px-3 font-medium text-slate-200">
+              <span class="block">${ev.friendly_source || ev.source_ip}</span>
+              <span class="text-[10px] text-slate-500">${ev.device_category || 'Network Device'}</span>
+            </td>
+            <td class="py-2.5 px-3 font-semibold ${ev.is_malicious ? 'text-red-400' : 'text-emerald-400'}">
+              ${ev.friendly_attack_title || ev.attack_type}
+            </td>
+            <td class="py-2.5 px-3 font-semibold text-xs">
+              <span class="px-2 py-0.5 rounded text-[11px] ${ev.simple_risk_color === 'red' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : ev.simple_risk_color === 'yellow' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
+                ${ev.simple_risk_label || ev.risk_level}
+              </span>
+            </td>
+            <td class="py-2.5 px-3 text-slate-300 text-xs">${ev.simple_mitigation || ev.mitigation_action}</td>
+            <td class="py-2.5 px-3 text-right">
+              <button onclick="selectEventById(${ev.id}); event.stopPropagation();" class="text-cyber-accent hover:underline text-xs font-semibold">
+                Tell Me More &rarr;
+              </button>
+            </td>
+          `;
+        } else {
+          // Technical Expert Mode
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 font-mono text-slate-400">${ev.timestamp}</td>
+            <td class="py-2.5 px-3 font-mono font-medium text-slate-200">${ev.source_ip}</td>
+            <td class="py-2.5 px-3 font-semibold ${ev.is_malicious ? 'text-red-400' : 'text-emerald-400'}">${ev.attack_type}</td>
+            <td class="py-2.5 px-3">${getThreatBadge(ev.risk_level)}</td>
+            <td class="py-2.5 px-3 font-mono text-slate-300">${ev.risk_score.toFixed(2)}</td>
+            <td class="py-2.5 px-3 text-slate-400 text-xs">${ev.mitigation_action}</td>
+            <td class="py-2.5 px-3 text-right">
+              <button onclick="selectEventById(${ev.id}); event.stopPropagation();" class="text-cyber-accent hover:underline text-xs">
+                <i class="fa-solid fa-circle-info mr-1"></i>XAI
+              </button>
+            </td>
+          `;
+        }
+        tbody.appendChild(tr);
+      });
     }
 
     function getThreatBadge(level) {
@@ -368,32 +545,6 @@
       }
     }
 
-    function renderTable(events) {
-      const tbody = document.getElementById('trafficTableBody');
-      tbody.innerHTML = '';
-
-      events.forEach(ev => {
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-cyber-700/40 cursor-pointer transition ' + (window.selectedEventId === ev.id ? 'bg-cyber-700/60' : '');
-        tr.onclick = () => selectEvent(ev);
-
-        tr.innerHTML = `
-          <td class="py-2.5 px-3 font-mono text-slate-400">${ev.timestamp}</td>
-          <td class="py-2.5 px-3 font-mono font-medium text-slate-200">${ev.source_ip}</td>
-          <td class="py-2.5 px-3 font-semibold ${ev.is_malicious ? 'text-red-400' : 'text-emerald-400'}">${ev.attack_type}</td>
-          <td class="py-2.5 px-3">${getThreatBadge(ev.risk_level)}</td>
-          <td class="py-2.5 px-3 font-mono text-slate-300">${ev.risk_score.toFixed(2)}</td>
-          <td class="py-2.5 px-3 text-slate-400 text-xs">${ev.mitigation_action}</td>
-          <td class="py-2.5 px-3 text-right">
-            <button onclick="selectEventById(${ev.id}); event.stopPropagation();" class="text-cyber-accent hover:underline text-xs">
-              <i class="fa-solid fa-circle-info mr-1"></i>XAI
-            </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
     function selectEventById(id) {
       const ev = currentEvents.find(e => e.id === id);
       if (ev) selectEvent(ev);
@@ -401,11 +552,42 @@
 
     function selectEvent(ev) {
       window.selectedEventId = ev.id;
+
+      // 1. Update Simple Mode Inspector Elements
+      document.getElementById('simpleBadgeTag').textContent = ev.friendly_attack_badge || (ev.is_malicious ? 'THREAT' : 'SAFE');
+      document.getElementById('simpleStatusTitle').textContent = ev.friendly_attack_title || ev.attack_type;
+      document.getElementById('simpleStatusDesc').textContent = ev.friendly_attack_desc || 'Analyzed network traffic pattern.';
+      document.getElementById('simpleOriginDevice').textContent = ev.friendly_source || ev.source_ip;
+      document.getElementById('simpleOriginCategory').textContent = ev.device_category || 'Network Endpoint';
+      document.getElementById('simpleActionAdvice').textContent = ev.action_advice || 'No action needed.';
+
+      const banner = document.getElementById('simpleStatusBanner');
+      const icon = document.getElementById('simpleStatusIcon');
+      if (ev.is_malicious) {
+        banner.className = 'p-4 rounded-xl border flex items-start gap-3 bg-red-500/10 border-red-500/30 text-red-300';
+        icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-400"></i>';
+      } else {
+        banner.className = 'p-4 rounded-xl border flex items-start gap-3 bg-emerald-500/10 border-emerald-500/30 text-emerald-300';
+        icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+      }
+
+      // Generate a beginner-friendly plain-English explanation for why it was flagged
+      if (ev.is_malicious) {
+        const drivers = ev.top_attack_drivers || [];
+        const topDriverNames = drivers.map(d => d.feature).join(', ');
+        document.getElementById('simpleAiReason').innerHTML = `
+          Our machine learning AI detected abnormal communication. The key reasons were unusual behavior in <b>${topDriverNames || 'packet arrival rates'}</b>, which closely matches documented attack patterns.
+        `;
+      } else {
+        document.getElementById('simpleAiReason').textContent = 
+          "The traffic numbers and timings match standard safe internet browsing. No rapid floods or break-in attempts were detected.";
+      }
+
+      // 2. Update Expert Mode Elements
       document.getElementById('selectedFlowId').textContent = `Flow #${ev.id} (${ev.attack_type})`;
       document.getElementById('xaiSummary').textContent = ev.summary;
-
-      // Risk score bar
       document.getElementById('xaiScoreVal').textContent = `${ev.risk_score.toFixed(4)} / 1.0000`;
+      
       const pct = Math.min(100, Math.round(ev.risk_score * 100));
       const scoreBar = document.getElementById('xaiScoreBar');
       scoreBar.style.width = `${pct}%`;
@@ -414,7 +596,7 @@
       else if (ev.risk_level === 'MEDIUM') scoreBar.className = 'h-full bg-yellow-400 transition-all duration-500';
       else scoreBar.className = 'h-full bg-emerald-400 transition-all duration-500';
 
-      // Update SHAP Chart
+      // Update SHAP Chart for Expert Mode
       let labels = [];
       let data = [];
       let colors = [];
@@ -423,13 +605,13 @@
         ev.top_attack_drivers.forEach(d => {
           labels.push(d.feature);
           data.push(d.shap_value);
-          colors.push('rgba(239, 68, 68, 0.85)'); // Red for attack push
+          colors.push('rgba(239, 68, 68, 0.85)');
         });
       } else if (ev.top_benign_drivers && ev.top_benign_drivers.length > 0) {
         ev.top_benign_drivers.forEach(d => {
           labels.push(d.feature);
           data.push(d.shap_value);
-          colors.push('rgba(16, 185, 129, 0.85)'); // Green for benign push
+          colors.push('rgba(16, 185, 129, 0.85)');
         });
       }
 
@@ -446,7 +628,7 @@
     function renderBlockedIps(blockedList) {
       const container = document.getElementById('blockedIpList');
       if (!blockedList || blockedList.length === 0) {
-        container.innerHTML = '<p class="text-xs text-slate-500 italic">No IPs currently blocked.</p>';
+        container.innerHTML = '<p class="text-xs text-slate-500 italic">No devices currently blocked.</p>';
         return;
       }
 
@@ -457,7 +639,7 @@
         div.innerHTML = `
           <div>
             <span class="font-mono text-red-400 font-bold">${item.source_ip}</span>
-            <span class="text-slate-500 ml-2">(${item.status})</span>
+            <span class="text-slate-500 ml-2">(${item.status === 'SIMULATED_BLOCK' ? 'Simulated Drop' : 'Enforced'})</span>
           </div>
           <button onclick="unblockIp('${item.source_ip}')" class="text-slate-400 hover:text-white px-2 py-0.5 rounded bg-cyber-700">
             Unblock
@@ -487,7 +669,7 @@
       if (autoStreamTimer) {
         clearInterval(autoStreamTimer);
         autoStreamTimer = null;
-        btn.innerHTML = '<i class="fa-solid fa-play mr-1"></i> Auto Stream: OFF';
+        btn.innerHTML = '<i class="fa-solid fa-play mr-1"></i> Auto-Simulate: OFF';
         btn.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyber-700 text-slate-300 border border-cyber-600 hover:bg-cyber-600 transition';
       } else {
         const scenarios = ['Benign', 'Benign', 'DDoS', 'PortScan', 'Benign', 'SSH-Patator'];
@@ -495,7 +677,7 @@
           const s = scenarios[Math.floor(Math.random() * scenarios.length)];
           injectTraffic(s);
         }, 3000);
-        btn.innerHTML = '<i class="fa-solid fa-pause mr-1"></i> Auto Stream: ACTIVE';
+        btn.innerHTML = '<i class="fa-solid fa-pause mr-1"></i> Auto-Simulate: ON';
         btn.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/40 animate-pulse transition';
       }
     }
@@ -529,8 +711,9 @@
     // On Load
     window.addEventListener('DOMContentLoaded', () => {
       initShapChart();
+      renderTableHeader();
       refreshDashboard();
-      setInterval(refreshDashboard, 5000);
+      setInterval(refreshDashboard, 4000);
     });
   </script>
 </body>
