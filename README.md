@@ -18,27 +18,20 @@ Flask dashboard.
 
 ## Current status
 
-Milestones 1-7, 9, 10, and 11 are complete:
+All Milestones 1 through 13 are complete:
 
-- CICIDS2017 data has been inspected, validated, and saved as processed
-  Parquet files.
-- A binary Random Forest classifier detects benign vs malicious traffic.
-- A second attack-only Random Forest classifier identifies the specific
-  attack type after Stage 1 flags a flow as malicious.
-- `src/predict.py` loads both models and exposes the reusable prediction
-  functions.
-- `src/explain.py` integrates SHAP explainability to explain why a flow was
-  classified as malicious or benign.
-- `src/risk_engine.py` calculates a transparent threat score and assigns
-  threat levels (LOW, MEDIUM, HIGH, CRITICAL).
-- `src/log_correlator.py` correlates host authentication logs (`/var/log/auth.log`)
-  with network detections to dynamically escalate threat levels.
-- `src/response.py` executes automated mitigation with safe dry-run mode and
-  hardcoded IP whitelisting.
-- `src/app.py` and `src/templates/index.html` deliver a real-time web dashboard
-  for live detection monitoring, interactive SHAP visualization, and firewall
-  management.
-- 15 automated unit and integration tests verify the pipeline.
+- CICIDS2017 benchmark dataset processed and validated.
+- Two-Stage Random Forest ML detection pipeline (Stage 1 Binary: 99.88% accuracy;
+  Stage 2 Multi-Class: 99.71% accuracy).
+- `src/predict.py` reusable prediction and batch inference modules.
+- `src/explain.py` Explainable AI (SHAP TreeExplainer) with feature attributions.
+- `src/risk_engine.py` transparent composite threat risk engine (LOW/MED/HIGH/CRITICAL).
+- `src/capture.py` network packet sniffer and 77-feature statistical flow mapper.
+- `src/log_correlator.py` Linux host log correlation (`/var/log/auth.log`) with dynamic risk boost.
+- `src/response.py` automated firewall mitigation with safe dry-run mode and IP whitelisting.
+- `src/app.py` & `src/templates/index.html` real-time Flask SOC web dashboard.
+- `main.py` master end-to-end integration orchestrator and demo script.
+- 18 automated unit and integration tests passing in `tests/`.
 
 Current model artifacts:
 

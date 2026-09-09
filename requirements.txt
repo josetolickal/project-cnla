@@ -12,3 +12,6 @@ shap>=0.50
 
 # Web Dashboard (Milestone 11)
 flask>=3.0
+
+# Network Capture & Feature Mapping (Milestone 8)
+scapy>=2.5

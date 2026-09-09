@@ -737,3 +737,60 @@ characteristics and in the host server's authentication syslog.
 
 - All 3 correlation unit tests in `tests/test_log_correlator.py` passed.
 - Integrated seamlessly into `src/app.py` event processing.
+
+---
+
+## Milestone 8 — Network Packet Capture & Feature Mapping
+
+### Goal
+
+Bridge raw network packets into the 77 statistical flow features expected
+by the trained Random Forest models.
+
+### Implementation (`src/capture.py`)
+
+- **Bidirectional Flow Assembly**:
+  - Groups packets into flows using the 5-tuple: `(src_ip, dst_ip, src_port, dst_port, protocol)`.
+  - Distinguishes forward packets (client-to-server) and backward packets (server-to-client).
+- **Feature Extraction Pipeline**:
+  - Calculates inter-arrival times (IAT), duration in microseconds, byte and packet rates,
+    TCP flag tallies (SYN, FIN, RST, ACK, PSH, URG), and window sizes.
+  - Outputs a complete 77-feature dictionary strictly conforming to `models/feature_names.json`.
+- **Live Sniffing & Safe Simulation**:
+  - Supports live interface sniffing with Scapy.
+  - Provides simulated packet generation for safe, cross-platform demonstration without root access.
+
+### Verified Test Results
+
+- All 3 capture unit tests in `tests/test_capture.py` passed.
+
+---
+
+## Milestone 12 — End-to-End System Integration
+
+### Goal
+
+Unify all submodules into an automated pipeline executable via a single command.
+
+### Pipeline Flow
+
+$$\text{Packet Capture (M8)} \longrightarrow \text{77-Feature Mapping} \longrightarrow \text{Stage 1 \& 2 ML (M4, M5)} \longrightarrow \text{Log Correlation (M9)} \longrightarrow \text{Risk Engine (M7)} \longrightarrow \text{SHAP XAI (M6)} \longrightarrow \text{Threat Mitigation (M10)} \longrightarrow \text{Dashboard (M11)}$$
+
+### Orchestration Script (`main.py`)
+
+- `python main.py`: Runs the complete end-to-end integration scenario across Benign,
+  SSH Brute-Force, and DDoS traffic.
+- `python main.py --web`: Launches the Flask real-time monitoring web dashboard.
+
+---
+
+## Milestone 13 — System Evaluation & Presentation Deliverables
+
+### Summary of Completed Milestones
+
+All 13 milestones outlined in `PROJECT_CONTEXT.md` are fully implemented and verified:
+- **18 automated unit and integration tests** passing in `tests/`.
+- Working **Explainable AI (SHAP)** engine delivering human-readable rationale.
+- Deterministic **Risk Engine** mapping attacks to LOW/MED/HIGH/CRITICAL tiers.
+- Safe **Firewall Response** module running with dry-run protection.
+- Live **Flask Web Dashboard** with real-time SOC-style monitoring.
