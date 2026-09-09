@@ -9,3 +9,6 @@ pyarrow>=18.0
 
 # Explainable AI (Milestone 6)
 shap>=0.50
+
+# Web Dashboard (Milestone 11)
+flask>=3.0

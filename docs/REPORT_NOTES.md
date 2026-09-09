@@ -646,3 +646,61 @@ $$\text{Risk Score} = (P_{\text{malicious}} \times 0.60) + (\text{Attack Severit
   - Benign flows register as **LOW** risk with negative SHAP drivers.
   - DDoS flows register as **CRITICAL** risk (0.9200) with positive SHAP drivers
     (`Init Fwd Win Bytes`, `Flow Bytes/s`, `Flow Packets/s`).
+
+---
+
+## Milestone 10 — Automated Threat Response (Controlled Mitigation)
+
+### Goal
+
+Provide controlled defensive actions (such as dropping network packets or
+blocking malicious source IPs) when a HIGH or CRITICAL attack is confirmed,
+while maintaining strict safeguards against self-lockout or unintended damage.
+
+### Safety Design
+
+1. **Dry-Run Mode Enabled by Default**:
+   In dry-run mode, the responder calculates and formats the exact Linux
+   firewall command (`iptables -A INPUT -s <IP> -j DROP`) and writes the audit
+   record to `logs/response.log`, without altering kernel firewall tables.
+2. **Strict IP Whitelist**:
+   `127.0.0.1`, `localhost`, `192.168.1.1`, and loopback subnets are permanently
+   protected and can never be blocked.
+3. **Audit Logging & Manual Override**:
+   All mitigation actions are logged with timestamps and rationale, and
+   administrators can manually unblock or block IPs through the API and dashboard.
+
+---
+
+## Milestone 11 — Real-Time Flask Web Dashboard
+
+### Goal
+
+Provide a live, visual monitoring dashboard connecting all components of the
+detection pipeline — flow classification, attack identification, SHAP
+explanations, risk levels, and automated threat mitigation.
+
+### Architecture & Implementation
+
+Created `src/app.py` and `src/templates/index.html`:
+- **Backend API**:
+  - `GET /api/status`: System operational state, total flows analyzed, attack counts.
+  - `GET /api/events`: Real-time circular buffer stream of recently analyzed network flows.
+  - `GET /api/event/<id>`: Full forensic details and SHAP explanation for a specific flow.
+  - `POST /api/simulate`: Injects simulated traffic flows (Benign, DDoS, PortScan, SSH-Patator)
+    and executes them through the full ML + XAI + Risk + Mitigation stack.
+  - `POST /api/mitigation/toggle_dry_run`: Dynamic toggle between safe dry-run and live enforcement.
+  - `POST /api/mitigation/unblock` / `block`: Manual IP management.
+- **Frontend UI (`src/templates/index.html`)**:
+  - Dark-mode responsive interface built with Tailwind CSS and FontAwesome.
+  - Top KPI cards: Total Flows, Attacks Detected, Malicious Ratio, Highest Threat Tier, Mitigated IPs.
+  - Real-time Traffic Event Table with color-coded risk tags (**LOW**, **MEDIUM**, **HIGH**, **CRITICAL**).
+  - Interactive SHAP Inspector: Visual horizontal bar chart of top positive/negative feature
+    contributions rendered dynamically via Chart.js.
+  - Live Simulation Toolbar: Buttons to inject realistic test attacks and auto-stream mode.
+  - Firewall Management Panel: View blocked IPs, toggle dry-run, and manual IP block controls.
+
+### Verified Test Results
+
+- All 6 dashboard test cases in `tests/test_dashboard_app.py` passed in 0.10s.
+- Total test suite (`tests/`): 12 automated unit and integration tests passing.
