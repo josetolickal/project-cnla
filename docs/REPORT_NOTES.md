@@ -794,3 +794,10 @@ All 13 milestones outlined in `PROJECT_CONTEXT.md` are fully implemented and ver
 - Deterministic **Risk Engine** mapping attacks to LOW/MED/HIGH/CRITICAL tiers.
 - Safe **Firewall Response** module running with dry-run protection.
 - Live **Flask Web Dashboard** with real-time SOC-style monitoring.
+- **Dual-Mode User Interface (HCI Accessibility)**:
+  - **Simple Mode (Non-Technical Users)**: Translates IP addresses into human device origins
+    (e.g., `🏠 Local Home/Office Device`, `⚠️ Suspicious External Machine`), translates
+    attack categories into plain English (`💥 Traffic Flood Attack`, `🔑 Password Guessing Attack`),
+    provides actionable advice ("What Should I Do?"), and translates SHAP math into simple stories.
+  - **Expert Mode (SOC Analysts & Evaluators)**: Displays raw network 5-tuples, exact mathematical
+    features, iptables syntax, and interactive SHAP TreeExplainer contribution charts.
