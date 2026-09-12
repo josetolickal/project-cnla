@@ -1,0 +1,33 @@
+[Unit]
+Description=Automated Linux Network Intrusion Detection System (NIDS) Daemon
+Documentation=https://github.com/josetolickal/project-cnla
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/nids
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/opt/nids/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=/opt/nids/venv/bin/python src/app.py
+
+# Restart policy for 24/7 autonomous operation
+Restart=always
+RestartSec=5s
+
+# Security hardening and Linux ambient capabilities
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=false
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+# Standard logging to systemd journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nids-daemon
+
+[Install]
+WantedBy=multi-user.target

@@ -7,18 +7,20 @@ Detection System. Connects ML predictions, SHAP explanations, risk scoring,
 and controlled firewall response to a live, modern web interface.
 """
 
+import io
 import json
 import os
+import queue
 import random
 import sys
 import threading
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 # Ensure project root is in sys.path when run directly as python src/app.py
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, Response, send_file
 from werkzeug.utils import secure_filename
 
 from src.predict import load_pipeline, predict_flow, identify_attack_type
@@ -28,6 +30,8 @@ from src.response import responder
 from src.log_correlator import correlate_ip_with_system_logs
 from src.setup_dev_models import ensure_models_and_samples
 from src.capture import read_pcap_file
+from src.dpi_engine import DPI_ENGINE
+from src.report_generator import generate_pdf_report
 
 app = Flask(
     __name__,
@@ -52,6 +56,59 @@ IP_POOL = {
     "DDoS": ["203.0.113.45", "198.51.100.89", "185.220.101.5"],
     "PortScan": ["192.0.2.77", "198.51.100.12"],
     "SSH-Patator": ["45.33.32.156", "185.190.141.22"],
+}
+
+# ---------------------------------------------------------------------------
+# Phase 1: Real-Time Server-Sent Events (SSE) Broadcaster
+# ---------------------------------------------------------------------------
+class SSEBroadcaster:
+    """Manages real-time Server-Sent Events (SSE) connections to browser clients."""
+
+    def __init__(self):
+        self.subscribers: List[queue.Queue] = []
+        self.lock = threading.Lock()
+
+    def subscribe(self) -> queue.Queue:
+        q = queue.Queue(maxsize=100)
+        with self.lock:
+            self.subscribers.append(q)
+        return q
+
+    def unsubscribe(self, q: queue.Queue):
+        with self.lock:
+            if q in self.subscribers:
+                self.subscribers.remove(q)
+
+    def broadcast(self, event_data: Dict[str, Any], event_name: str = "threat_event"):
+        payload_str = json.dumps(event_data)
+        message = f"event: {event_name}\ndata: {payload_str}\n\n"
+        with self.lock:
+            dead = []
+            for q in self.subscribers:
+                try:
+                    q.put_nowait(message)
+                except queue.Full:
+                    dead.append(q)
+            for d in dead:
+                if d in self.subscribers:
+                    self.subscribers.remove(d)
+
+SSE_MANAGER = SSEBroadcaster()
+
+# ---------------------------------------------------------------------------
+# Phase 2: Distributed Multi-Sensor Probe Registry
+# ---------------------------------------------------------------------------
+REGISTERED_SENSORS: Dict[str, Dict[str, Any]] = {
+    "sensor-primary-soc": {
+        "sensor_id": "sensor-primary-soc",
+        "hostname": "localhost",
+        "location": "Central-SOC-Controller",
+        "interface": "eth0",
+        "status": "ONLINE",
+        "last_seen": time.time(),
+        "packets_observed": 0,
+        "flows_forwarded": 0,
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -297,6 +354,9 @@ def process_flow_event(
     dest_ip: str = "192.168.1.100",
     dest_port: int = 80,
     forced_attack_type: str = None,
+    raw_payload: Optional[bytes] = None,
+    sensor_id: str = "sensor-primary-soc",
+    sensor_location: str = "Central-Controller",
 ) -> Dict[str, Any]:
     """Process a single network flow through the complete IDS stack."""
     global EVENT_COUNTER
@@ -315,22 +375,51 @@ def process_flow_event(
             attack_type = attack_res["attack_type"]
             confidence = attack_res["confidence"]
 
-    # 3. Linux Host Log Correlation (Milestone 9)
+    # 3. Phase 3: Deep Packet Inspection (DPI) & JA3 TLS Fingerprinting
+    dpi_meta = flow_data.get("_dpi_meta")
+    if not dpi_meta:
+        if raw_payload:
+            dpi_meta = DPI_ENGINE.inspect_payload(raw_payload)
+        elif dest_port == 443:
+            is_c2 = (attack_type in ("DDoS", "PortScan", "SSH-Patator") or (forced_attack_type and forced_attack_type != "Benign"))
+            client_t = "CobaltStrike" if is_c2 else "Chrome"
+            tls_payload = DPI_ENGINE.generate_synthetic_tls_handshake(client_t)
+            dpi_meta = DPI_ENGINE.inspect_payload(tls_payload)
+        else:
+            dpi_meta = {
+                "has_tls": False,
+                "ja3_hash": "N/A",
+                "is_threat": False,
+                "signature_name": "Standard TCP/UDP",
+                "category": "CLEAR_TEXT",
+                "severity": "SAFE",
+                "description": "Standard unencrypted transport layer communication.",
+            }
+
+    # If DPI caught a known C2 beacon / malware, elevate risk to CRITICAL!
+    if dpi_meta and dpi_meta.get("is_threat"):
+        pred["is_malicious"] = 1
+        attack_type = f"{attack_type} [C2: {dpi_meta['signature_name']}]"
+
+    # 4. Linux Host Log Correlation (Milestone 9)
     log_corr = correlate_ip_with_system_logs(source_ip)
     log_boost = log_corr["boost"] if pred["is_malicious"] == 1 else 0.0
 
-    # 4. Threat Risk Engine (Milestone 7)
+    # 5. Threat Risk Engine (Milestone 7)
     risk = calculate_risk(
         is_malicious=pred["is_malicious"],
         probability=pred["probability"],
         attack_type=attack_type if pred["is_malicious"] == 1 else None,
         log_correlation_boost=log_boost,
     )
+    if dpi_meta and dpi_meta.get("is_threat"):
+        risk["risk_level"] = "CRITICAL"
+        risk["risk_score"] = max(risk["risk_score"], 0.98)
 
-    # 5. Explainable AI (Milestone 6 SHAP)
+    # 6. Explainable AI (Milestone 6 SHAP)
     explanation = explain_flow(flow_data, pipeline, top_k=4)
 
-    # 6. Automated Threat Response (Milestone 10)
+    # 7. Automated Threat Response (Milestone 10)
     response_result = responder.evaluate_and_respond(
         source_ip=source_ip,
         risk_level=risk["risk_level"],
@@ -338,7 +427,7 @@ def process_flow_event(
         attack_type=attack_type,
     )
 
-    # 7. Wireshark Packet Inspection Samples
+    # 8. Wireshark Packet Inspection Samples
     packets = flow_data.get("_packet_samples")
     if not packets:
         packets = generate_wireshark_packets(
@@ -346,14 +435,20 @@ def process_flow_event(
             dest_ip=dest_ip,
             dest_port=dest_port,
             attack_type=attack_type,
-            is_malicious=pred["is_malicious"]
+            is_malicious=pred["is_malicious"],
         )
 
     device_info = get_friendly_device_origin(source_ip)
-    friendly_attack = FRIENDLY_ATTACK_TRANSLATIONS.get(attack_type, DEFAULT_FRIENDLY_ATTACK)
+    friendly_attack = dict(FRIENDLY_ATTACK_TRANSLATIONS.get(attack_type.split(" [")[0], DEFAULT_FRIENDLY_ATTACK))
 
     # Simplified risk description for everyday users
-    if risk["risk_level"] == "CRITICAL":
+    if dpi_meta and dpi_meta.get("is_threat"):
+        friendly_attack["title"] = f"🚨 C2 Malware Beacon Detected ({dpi_meta['signature_name']})"
+        friendly_attack["badge"] = "MALWARE C2"
+        friendly_attack["description"] = f"Deep Packet Inspection flagged active C2 beacon traffic: {dpi_meta['description']}"
+        simple_risk_label = "🔴 CRITICAL C2 INFECTION"
+        simple_risk_color = "red"
+    elif risk["risk_level"] == "CRITICAL":
         simple_risk_label = "🔴 DANGEROUS ATTACK"
         simple_risk_color = "red"
     elif risk["risk_level"] == "HIGH":
@@ -387,8 +482,8 @@ def process_flow_event(
         "friendly_attack_title": friendly_attack["title"],
         "friendly_attack_badge": friendly_attack["badge"],
         "friendly_attack_desc": friendly_attack["description"],
-        "friendly_attack_icon": friendly_attack["icon"],
-        "action_advice": friendly_attack["advice"],
+        "friendly_attack_icon": friendly_attack.get("icon", "fa-triangle-exclamation"),
+        "action_advice": friendly_attack.get("advice", "No action needed."),
         "simple_risk_label": simple_risk_label,
         "simple_risk_color": simple_risk_color,
         "simple_mitigation": simple_mitigation,
@@ -403,12 +498,18 @@ def process_flow_event(
         "mitigation_action": response_result["action_taken"],
         "mitigation_reason": response_result["reason"],
         "packets": packets,
+        "sensor_id": sensor_id,
+        "sensor_location": sensor_location,
+        "dpi": dpi_meta,
     }
 
     EVENT_COUNTER += 1
     EVENT_HISTORY.insert(0, event)
     if len(EVENT_HISTORY) > MAX_EVENT_HISTORY:
         EVENT_HISTORY.pop()
+
+    # Phase 1: Real-Time Server-Sent Events (SSE) Broadcast
+    SSE_MANAGER.broadcast(event)
 
     return event
 
@@ -653,5 +754,187 @@ def capture_status():
     return jsonify(LIVE_SNIFFER.get_status())
 
 
+# ---------------------------------------------------------------------------
+# Phase 1: Real-Time Server-Sent Events (SSE) Stream Endpoint
+# ---------------------------------------------------------------------------
+
+@app.route("/api/stream", methods=["GET"])
+def sse_stream():
+    """Server-Sent Events (SSE) stream endpoint for real-time alert delivery."""
+    def event_generator():
+        q = SSE_MANAGER.subscribe()
+        try:
+            init_msg = json.dumps({
+                "status": "CONNECTED",
+                "server_time": time.time(),
+                "active_sensors": len(REGISTERED_SENSORS),
+            })
+            yield f"event: ping\ndata: {init_msg}\n\n"
+            while True:
+                try:
+                    msg = q.get(timeout=20.0)
+                    yield msg
+                except queue.Empty:
+                    yield f"event: ping\ndata: {{\"heartbeat\": {time.time()}}}\n\n"
+        except GeneratorExit:
+            SSE_MANAGER.unsubscribe(q)
+
+    return Response(
+        event_generator(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Distributed Sensor Agent Ingestion Endpoints
+# ---------------------------------------------------------------------------
+
+@app.route("/api/sensor/register", methods=["POST"])
+def register_sensor():
+    """Register a remote Python probe sensor daemon."""
+    data = request.get_json() or {}
+    sensor_id = data.get("sensor_id", f"sensor-{int(time.time())}")
+    hostname = data.get("hostname", "remote-probe")
+    location = data.get("location", "Branch Office / Cloud Node")
+    interface = data.get("interface", "eth0")
+
+    REGISTERED_SENSORS[sensor_id] = {
+        "sensor_id": sensor_id,
+        "hostname": hostname,
+        "location": location,
+        "interface": interface,
+        "status": "ONLINE",
+        "registered_at": time.time(),
+        "last_seen": time.time(),
+        "packets_observed": 0,
+        "flows_forwarded": 0,
+    }
+    return jsonify({
+        "status": "REGISTERED",
+        "sensor_id": sensor_id,
+        "message": f"Sensor '{sensor_id}' successfully enrolled in Central SOC.",
+    })
+
+
+@app.route("/api/sensor/heartbeat", methods=["POST"])
+def sensor_heartbeat():
+    """Record heartbeat and telemetry counters from remote sensor."""
+    data = request.get_json() or {}
+    sensor_id = data.get("sensor_id")
+    if not sensor_id or sensor_id not in REGISTERED_SENSORS:
+        return jsonify({"error": "Sensor not registered"}), 404
+
+    sensor = REGISTERED_SENSORS[sensor_id]
+    sensor["last_seen"] = time.time()
+    sensor["status"] = "ONLINE"
+    sensor["packets_observed"] += int(data.get("packets_delta", 0))
+    sensor["flows_forwarded"] += int(data.get("flows_delta", 0))
+    return jsonify({"status": "PONG", "sensor_id": sensor_id, "server_time": time.time()})
+
+
+@app.route("/api/sensor/ingest", methods=["POST"])
+def ingest_sensor_flows():
+    """Ingest a batch of flow telemetry and optional raw TLS payloads from a distributed sensor."""
+    data = request.get_json() or {}
+    sensor_id = data.get("sensor_id", "sensor-unknown")
+    location = data.get("location", "Remote Node")
+    flows = data.get("flows", [])
+
+    if sensor_id in REGISTERED_SENSORS:
+        REGISTERED_SENSORS[sensor_id]["last_seen"] = time.time()
+        REGISTERED_SENSORS[sensor_id]["flows_forwarded"] += len(flows)
+
+    processed_events = []
+    for f in flows:
+        flow_key = f.get("_flow_key", {})
+        s_ip = flow_key.get("src_ip", f.get("source_ip", "203.0.113.80"))
+        d_ip = flow_key.get("dst_ip", f.get("dest_ip", "192.168.1.100"))
+        d_port = flow_key.get("dst_port", f.get("dest_port", 80))
+        forced_type = f.get("attack_type")
+        raw_payload_hex = f.get("raw_payload_hex")
+        raw_payload = bytes.fromhex(raw_payload_hex) if raw_payload_hex else None
+
+        ev = process_flow_event(
+            flow_data=f,
+            source_ip=s_ip,
+            dest_ip=d_ip,
+            dest_port=d_port,
+            forced_attack_type=forced_type,
+            raw_payload=raw_payload,
+            sensor_id=sensor_id,
+            sensor_location=location,
+        )
+        processed_events.append(ev)
+
+    malicious_count = sum(1 for e in processed_events if e["is_malicious"] == 1)
+    return jsonify({
+        "success": True,
+        "sensor_id": sensor_id,
+        "received_flows": len(flows),
+        "malicious_detected": malicious_count,
+        "processed_event_ids": [e["id"] for e in processed_events],
+    })
+
+
+@app.route("/api/sensors", methods=["GET"])
+def list_sensors():
+    """Return all registered probe daemons and their current online/offline health."""
+    now = time.time()
+    sensor_list = []
+    for s_id, s_data in REGISTERED_SENSORS.items():
+        is_alive = (now - s_data.get("last_seen", 0)) < 45.0
+        sensor_entry = dict(s_data)
+        sensor_entry["status"] = "ONLINE" if is_alive else "OFFLINE"
+        sensor_entry["last_seen_seconds_ago"] = round(now - s_data.get("last_seen", 0), 1)
+        sensor_list.append(sensor_entry)
+    return jsonify({"sensors": sensor_list, "total_sensors": len(sensor_list)})
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Executive PDF Incident Briefing Report Export
+# ---------------------------------------------------------------------------
+
+@app.route("/api/report/pdf", methods=["GET"])
+def export_pdf_report():
+    """Generate and stream auditor-ready executive PDF incident briefing."""
+    limit = int(request.args.get("limit", 50))
+    events_to_report = EVENT_HISTORY[:limit]
+    responder_status = responder.get_status()
+
+    pdf_bytes = generate_pdf_report(events_to_report, responder_status)
+    filename = f"NIDS_Executive_Incident_Briefing_{int(time.time())}.pdf"
+
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@app.route("/api/report/summary", methods=["GET"])
+def report_summary():
+    """Return structured summary metrics for executive reporting."""
+    total_events = len(EVENT_HISTORY)
+    malicious = [e for e in EVENT_HISTORY if e["is_malicious"] == 1]
+    c2_beacons = [e for e in EVENT_HISTORY if e.get("dpi", {}).get("is_threat")]
+    return jsonify({
+        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "total_analyzed_flows": total_events,
+        "malicious_detected": len(malicious),
+        "c2_beacons_detected": len(c2_beacons),
+        "blocked_ips_count": len(responder.blocked_ips),
+        "dry_run_mode": responder.dry_run,
+        "registered_sensors": len(REGISTERED_SENSORS),
+    })
+
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
+

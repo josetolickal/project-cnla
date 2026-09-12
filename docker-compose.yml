@@ -1,0 +1,48 @@
+# =============================================================================
+# Automated Linux Network Intrusion Detection System (NIDS) — Docker Compose
+# =============================================================================
+version: '3.8'
+
+services:
+  # Central SOC Web Dashboard & ML Detection Controller
+  soc-controller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nids-soc-controller
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    cap_add:
+      - NET_ADMIN  # Needed for Linux iptables firewall enforcement
+      - NET_RAW    # Needed for raw socket packet sniffing
+    volumes:
+      - ./logs:/app/logs
+      - ./data/uploads:/app/data/uploads
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    networks:
+      - nids-net
+
+  # Distributed Remote Sensor Probe (Simulated Remote Linux Server / Cloud VM)
+  sensor-probe-remote:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nids-remote-sensor-01
+    restart: unless-stopped
+    depends_on:
+      - soc-controller
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    command: ["python", "src/sensor_agent.py", "--server", "http://soc-controller:5000", "--sensor-id", "sensor-docker-branch-01", "--location", "Branch-DC-Cluster", "--demo"]
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - nids-net
+
+networks:
+  nids-net:
+    driver: bridge

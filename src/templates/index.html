@@ -75,10 +75,23 @@
           </button>
         </div>
 
-        <div class="hidden md:flex items-center space-x-2 bg-cyber-900 px-3 py-1.5 rounded-lg border border-cyber-700">
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse-slow"></span>
-          <span class="text-xs font-medium text-slate-300">Live Sniffer Active</span>
+        <!-- Real-Time SSE Stream Status -->
+        <div id="sseStatusBadge" class="flex items-center space-x-1.5 bg-cyber-900 px-2.5 py-1.5 rounded-lg border border-cyber-700 text-xs text-emerald-400" title="Server-Sent Events (SSE) Real-Time Alert Stream">
+          <span id="sseIndicatorDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="sseStatusText" class="font-mono text-[11px]">SSE: LIVE</span>
         </div>
+
+        <!-- Distributed Sensor Node Counter -->
+        <div id="sensorsBadge" class="hidden md:flex items-center space-x-1.5 bg-cyber-900 px-2.5 py-1.5 rounded-lg border border-cyber-700 text-xs text-cyan-400" title="Active Distributed Sensor Probes">
+          <i class="fa-solid fa-network-wired text-cyan-400"></i>
+          <span id="sensorsBadgeText">1 Probe Node</span>
+        </div>
+
+        <!-- Export Executive Briefing (PDF) Button -->
+        <a href="/api/report/pdf" download class="flex items-center space-x-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/40 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition shadow-sm" title="Generate Auditor-Ready Executive PDF Incident Briefing">
+          <i class="fa-solid fa-file-pdf text-red-400"></i>
+          <span class="hidden sm:inline">Export Briefing (PDF)</span>
+        </a>
 
         <div id="dryRunBadge" class="flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs px-2.5 py-1.5 rounded-lg">
           <i class="fa-solid fa-shield-heart"></i>
@@ -350,6 +363,21 @@
                 <!-- Dynamically populated -->
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- Deep Packet Inspection (DPI) & TLS JA3 Fingerprint Panel -->
+        <div id="dpiCard" class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl space-y-3">
+          <div class="flex items-center justify-between border-b border-cyber-700 pb-3">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <i class="fa-solid fa-fingerprint text-purple-400"></i> Encrypted Traffic DPI & JA3
+            </h2>
+            <span id="dpiBadge" class="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-cyber-900 border border-cyber-700 text-slate-400">
+              L4 Inspection
+            </span>
+          </div>
+          <div id="dpiContent" class="text-xs space-y-2 text-slate-300">
+            <p class="text-slate-400 italic text-[11px]">Select a flow from the table to inspect deep packet features and TLS cryptographic signatures.</p>
           </div>
         </div>
 
@@ -639,10 +667,11 @@
             <td class="py-2.5 px-3 font-mono text-slate-400">${ev.timestamp}</td>
             <td class="py-2.5 px-3 font-medium text-slate-200">
               <span class="block">${ev.friendly_source || ev.source_ip}</span>
-              <span class="text-[10px] text-slate-500">${ev.device_category || 'Network Device'}</span>
+              <span class="text-[10px] text-slate-500">${ev.device_category || 'Network Device'} • <span class="text-cyan-400">${ev.sensor_location || 'Central SOC'}</span></span>
             </td>
             <td class="py-2.5 px-3 font-semibold ${ev.is_malicious ? 'text-red-400' : 'text-emerald-400'}">
-              ${ev.friendly_attack_title || ev.attack_type}
+              <span>${ev.friendly_attack_title || ev.attack_type}</span>
+              ${ev.dpi && ev.dpi.is_threat ? `<span class="block text-[9px] text-red-400 font-bold"><i class="fa-solid fa-skull mr-1"></i>${ev.dpi.threat_name}</span>` : ''}
             </td>
             <td class="py-2.5 px-3 font-semibold text-xs">
               <span class="px-2 py-0.5 rounded text-[11px] ${ev.simple_risk_color === 'red' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : ev.simple_risk_color === 'yellow' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
@@ -660,8 +689,14 @@
           // Technical Expert Mode
           tr.innerHTML = `
             <td class="py-2.5 px-3 font-mono text-slate-400">${ev.timestamp}</td>
-            <td class="py-2.5 px-3 font-mono font-medium text-slate-200">${ev.source_ip}</td>
-            <td class="py-2.5 px-3 font-semibold ${ev.is_malicious ? 'text-red-400' : 'text-emerald-400'}">${ev.attack_type}</td>
+            <td class="py-2.5 px-3 font-mono font-medium text-slate-200">
+              <div>${ev.source_ip}</div>
+              <div class="text-[10px] text-cyan-400 font-sans flex items-center gap-1"><i class="fa-solid fa-satellite-dish text-[9px]"></i>${ev.sensor_location || 'Central SOC'}</div>
+            </td>
+            <td class="py-2.5 px-3">
+              <span class="font-semibold ${ev.is_malicious ? 'text-red-400' : 'text-emerald-400'}">${ev.attack_type}</span>
+              ${ev.dpi && ev.dpi.is_threat ? `<div class="text-[9px] px-1.5 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-700/60 mt-0.5 font-mono inline-block"><i class="fa-solid fa-skull mr-1"></i>JA3: ${ev.dpi.threat_name}</div>` : ''}
+            </td>
             <td class="py-2.5 px-3">${getThreatBadge(ev.risk_level)}</td>
             <td class="py-2.5 px-3 font-mono text-slate-300">${ev.risk_score.toFixed(2)}</td>
             <td class="py-2.5 px-3 text-slate-400 text-xs">${ev.mitigation_action}</td>
@@ -769,7 +804,56 @@
       // 3. Render Wireshark Packet Breakdown
       renderWiresharkPackets(ev.packets || []);
 
+      // 4. Render Deep Packet Inspection & TLS JA3 Fingerprints
+      renderDpiInfo(ev);
+
       renderTable(currentEvents);
+    }
+
+    function renderDpiInfo(ev) {
+      const dpi = ev.dpi || {};
+      const dpiBadge = document.getElementById('dpiBadge');
+      const dpiContent = document.getElementById('dpiContent');
+      if (!dpiBadge || !dpiContent) return;
+
+      if (dpi.is_tls) {
+        if (dpi.is_threat) {
+          dpiBadge.className = 'text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse';
+          dpiBadge.textContent = '🚨 C2 BEACON DETECTED';
+          dpiContent.innerHTML = `
+            <div class="p-3 rounded-lg bg-red-950/40 border border-red-700/50 space-y-2">
+              <div class="font-bold text-red-300 flex items-center gap-1.5">
+                <i class="fa-solid fa-skull-crossbones text-red-400"></i> ${dpi.threat_name || 'Malware C2 Beacon'}
+              </div>
+              <div class="text-[11px] text-slate-300"><b>Threat Attribution:</b> <span class="text-amber-300">${dpi.matched_signature || 'Malware TLS Signature'}</span></div>
+              <div class="text-[11px] text-slate-300 break-all font-mono"><b>JA3 MD5:</b> <span class="text-red-300 font-bold">${dpi.ja3_hash || 'N/A'}</span></div>
+              ${dpi.sni ? `<div class="text-[11px] text-slate-300"><b>SNI Server:</b> <span class="text-cyan-300 font-mono">${dpi.sni}</span></div>` : ''}
+              <div class="text-[10px] text-red-400 font-medium">Decoded TLS Client Hello handshake without decrypting HTTPS payload.</div>
+            </div>
+          `;
+        } else {
+          dpiBadge.className = 'text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+          dpiBadge.textContent = 'STANDARD TLS CLIENT';
+          dpiContent.innerHTML = `
+            <div class="p-3 rounded-lg bg-cyber-900 border border-cyber-700 space-y-1.5">
+              <div class="text-[11px] text-emerald-300 font-semibold flex items-center gap-1.5">
+                <i class="fa-solid fa-lock text-emerald-400"></i> ${dpi.threat_name || 'Benign TLS Client'}
+              </div>
+              <div class="text-[11px] text-slate-400 break-all font-mono">JA3 MD5: <span class="text-slate-200">${dpi.ja3_hash || 'N/A'}</span></div>
+              ${dpi.sni ? `<div class="text-[11px] text-slate-400">SNI Server: <span class="text-cyan-300 font-mono">${dpi.sni}</span></div>` : ''}
+              <div class="text-[10px] text-slate-500">Ciphers: ${(dpi.ciphers || []).length} | Extensions: ${(dpi.extensions || []).length}</div>
+            </div>
+          `;
+        }
+      } else {
+        dpiBadge.className = 'text-[10px] px-2 py-0.5 rounded font-mono text-slate-400 bg-cyber-900 border border-cyber-700';
+        dpiBadge.textContent = 'PLAINTEXT TRANSPORT';
+        dpiContent.innerHTML = `
+          <div class="p-3 rounded-lg bg-cyber-900/60 border border-cyber-700 text-slate-400 italic text-[11px]">
+            No TLS Client Hello detected. Flow analyzed using standard Layer-4 packet and flow metrics.
+          </div>
+        `;
+      }
     }
 
     function renderWiresharkPackets(packets) {
@@ -1039,12 +1123,107 @@
       await refreshDashboard();
     }
 
+    // -------------------------------------------------------------------------
+    // Phase 1: Real-Time Server-Sent Events (SSE) Client
+    // -------------------------------------------------------------------------
+    let sseSource = null;
+
+    function updateSSEState(online) {
+      const dot = document.getElementById('sseIndicatorDot');
+      const txt = document.getElementById('sseStatusText');
+      if (!dot || !txt) return;
+
+      if (online) {
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        txt.textContent = 'SSE: LIVE';
+        txt.className = 'font-mono text-[11px] text-emerald-400';
+      } else {
+        dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+        txt.textContent = 'SSE: RECONNECT';
+        txt.className = 'font-mono text-[11px] text-amber-400';
+      }
+    }
+
+    function initSSEStream() {
+      if (!window.EventSource) {
+        console.warn("EventSource not supported by browser; falling back to HTTP polling.");
+        setInterval(refreshDashboard, 3000);
+        return;
+      }
+
+      try {
+        if (sseSource) sseSource.close();
+        sseSource = new EventSource('/api/stream');
+
+        sseSource.addEventListener('threat_event', function(e) {
+          try {
+            const newEvent = JSON.parse(e.data);
+            // Prepend new incident alert to the active stream with zero lag
+            currentEvents.unshift(newEvent);
+            if (currentEvents.length > 150) currentEvents.pop();
+            renderTable(currentEvents);
+
+            // Dynamically increment KPI counts
+            const totalEl = document.getElementById('statTotalFlows');
+            const atkEl = document.getElementById('statAttacks');
+            if (totalEl) totalEl.textContent = parseInt(totalEl.textContent || '0') + 1;
+            if (newEvent.is_malicious && atkEl) {
+              atkEl.textContent = parseInt(atkEl.textContent || '0') + 1;
+            }
+
+            // Glow animation on SSE pill
+            const dot = document.getElementById('sseIndicatorDot');
+            if (dot) {
+              dot.classList.add('scale-150');
+              setTimeout(() => dot.classList.remove('scale-150'), 300);
+            }
+          } catch (err) {
+            console.error("SSE JSON parsing error:", err);
+          }
+        });
+
+        sseSource.addEventListener('ping', function() {
+          updateSSEState(true);
+        });
+
+        sseSource.onopen = function() {
+          updateSSEState(true);
+        };
+
+        sseSource.onerror = function() {
+          updateSSEState(false);
+        };
+      } catch (err) {
+        console.error("Failed to initialize SSE:", err);
+        setInterval(refreshDashboard, 4000);
+      }
+    }
+
+    async function refreshSensors() {
+      try {
+        const res = await fetch('/api/sensors');
+        const data = await res.json();
+        const sensors = data.sensors || [];
+        const onlineCount = sensors.filter(s => s.status === 'ONLINE').length;
+        const badge = document.getElementById('sensorsBadgeText');
+        if (badge) {
+          badge.textContent = `${onlineCount} Probe Node${onlineCount === 1 ? '' : 's'}`;
+        }
+      } catch (err) {
+        console.warn("Sensor health fetch error:", err);
+      }
+    }
+
     // On Load
     window.addEventListener('DOMContentLoaded', () => {
       initShapChart();
       renderTableHeader();
       refreshDashboard();
-      setInterval(refreshDashboard, 4000);
+      initSSEStream();
+      refreshSensors();
+      setInterval(refreshSensors, 10000);
+      // Low-frequency background sync (every 30 seconds) instead of rapid 3s polling
+      setInterval(refreshDashboard, 30000);
     });
   </script>
 </body>
