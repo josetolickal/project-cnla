@@ -138,9 +138,36 @@ def run_end_to_end_demonstration():
     print("    python main.py --web\n")
 
 
+def process_pcap_file(pcap_path: str):
+    from src.capture import read_pcap_file
+    print("=" * 78)
+    print(f"  WIRESHARK CAPTURE ANALYSIS: {pcap_path}")
+    print("=" * 78)
+    ensure_models_and_samples()
+    pipeline = load_pipeline()
+    flows = read_pcap_file(pcap_path)
+    if not flows:
+        print("[!] No completed flows found in capture file.")
+        return
+
+    print(f"[+] Successfully extracted {len(flows)} flow(s). Running ML detection...\n")
+    for i, flow in enumerate(flows, 1):
+        pred = predict_flow(flow, pipeline)
+        if pred["is_malicious"] == 1:
+            attack = identify_attack_type(flow, pipeline)
+            risk = calculate_risk(1, pred["probability"], attack["attack_type"])
+            explanation = explain_flow(flow, pipeline, top_k=2)
+            top_drivers = [d["feature"] for d in explanation["top_attack_drivers"]]
+            print(f"[Flow #{i}] [ALERT] MALICIOUS -> Attack: '{attack['attack_type']}' | Level: [{risk['risk_level']}] (Score: {risk['risk_score']:.2f})")
+            print(f"           Key SHAP Drivers: {', '.join(top_drivers)}")
+        else:
+            print(f"[Flow #{i}] [OK] BENIGN -> Safe Normal Traffic (Confidence: {1.0 - pred['probability']:.1%})")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Automated Network Intrusion Detection System")
     parser.add_argument("--web", action="store_true", help="Launch the Flask Web Dashboard")
+    parser.add_argument("--pcap", type=str, help="Process a Wireshark / tcpdump .pcap capture file")
     args = parser.parse_args()
 
     if args.web:
@@ -148,6 +175,8 @@ def main():
         print("[*] Launching Real-Time Flask Web Dashboard...")
         print("[*] Open your browser and navigate to: http://127.0.0.1:5000")
         app.run(host="127.0.0.1", port=5000, debug=True)
+    elif args.pcap:
+        process_pcap_file(args.pcap)
     else:
         run_end_to_end_demonstration()
 

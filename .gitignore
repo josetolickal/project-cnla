@@ -8,6 +8,8 @@ __pycache__/
 # Downloaded datasets
 data/*
 !data/.gitkeep
+!data/sample_pcaps/
+!data/sample_pcaps/*.pcap
 
 # Generated project output
 logs/

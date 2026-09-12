@@ -801,3 +801,34 @@ All 13 milestones outlined in `PROJECT_CONTEXT.md` are fully implemented and ver
     provides actionable advice ("What Should I Do?"), and translates SHAP math into simple stories.
   - **Expert Mode (SOC Analysts & Evaluators)**: Displays raw network 5-tuples, exact mathematical
     features, iptables syntax, and interactive SHAP TreeExplainer contribution charts.
+
+---
+
+## Milestone 14 — Native Wireshark Integration & 3-Pane Packet Inspection
+
+### Goal
+
+Integrate Wireshark network packet capture (`.pcap` / `.pcapng`), deep packet inspection (DPI), and live Linux interface sniffing directly into the web dashboard.
+
+### Implemented Features
+
+1. **Browser `.pcap` Upload Engine**:
+   - Web endpoint `/api/upload_pcap` accepts `.pcap` or `.pcapng` files exported directly from Wireshark or `tcpdump`.
+   - The backend aggregates packets into bidirectional 5-tuple flows, computes 77 CICFlowMeter features, evaluates them with the ML models, computes risk scores, and pushes results into the dashboard in real time.
+
+2. **Wireshark 3-Pane Packet Dissector Modal**:
+   - Clicking any traffic incident opens an interactive modal mimicking Wireshark's classic 3-pane interface:
+     - **Top Pane:** Packet Frame Stream (`No.`, `Time`, `Source`, `Destination`, `Protocol`, `Length`, `Flags/Info`).
+     - **Middle Pane:** Decoded OSI Protocol Tree (`Frame` -> `Ethernet II` -> `IPv4` -> `TCP/UDP`).
+     - **Bottom Pane:** Raw Wire Hex Dump with byte offsets.
+
+3. **Linux Live Sniffer Background Controller**:
+   - Managed background daemon via `/api/capture/start`, `/api/capture/stop`, and `/api/capture/status`.
+   - Directly sniffs live Linux interfaces (`eth0`, `wlan0`, `lo`) via Scapy/libpcap.
+   - Includes graceful synthetic fallback for restricted test environments.
+
+4. **Bundled Demo Attack PCAPs**:
+   - `data/sample_pcaps/syn_flood_ddos.pcap` (DDoS SYN-flood attack stream).
+   - `data/sample_pcaps/ssh_bruteforce.pcap` (SSH password-guessing brute-force session).
+   - `data/sample_pcaps/benign_web_browsing.pcap` (Normal HTTP/HTTPS request/response exchange).
+

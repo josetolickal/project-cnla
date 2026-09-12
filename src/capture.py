@@ -75,6 +75,9 @@ class NetworkFlow:
         self.fwd_header_len = 0
         self.bwd_header_len = 0
 
+        # Wireshark packet inspection samples (stores up to 25 packets)
+        self.packet_samples: List[Dict[str, Any]] = []
+
     def add_packet(self, length: int, timestamp: float, is_forward: bool, flags_dict: Dict[str, int], win_size: int = 0, header_len: int = 20):
         """Record a single packet in this flow."""
         self.last_time = timestamp
@@ -104,7 +107,37 @@ class NetworkFlow:
             if f in self.flags:
                 self.flags[f] += count
 
-    def to_cicids_features(self) -> Dict[str, float]:
+        # Store Wireshark-compatible packet breakdown
+        if len(self.packet_samples) < 25:
+            active_flags = [k for k, v in flags_dict.items() if v]
+            flag_str = f"[{', '.join(active_flags)}]" if active_flags else ""
+            proto_name = "TCP" if self.protocol == 6 else ("UDP" if self.protocol == 17 else f"IP({self.protocol})")
+            
+            # Formulate Wireshark-style summary info string
+            info_parts = []
+            if flag_str:
+                info_parts.append(flag_str)
+            info_parts.append(f"Len={length}")
+            if win_size > 0:
+                info_parts.append(f"Win={win_size}")
+            
+            src_str = f"{self.src_ip}:{self.src_port}" if is_forward else f"{self.dst_ip}:{self.dst_port}"
+            dst_str = f"{self.dst_ip}:{self.dst_port}" if is_forward else f"{self.src_ip}:{self.src_port}"
+            
+            ts_str = time.strftime("%H:%M:%S", time.localtime(timestamp)) + f".{int((timestamp % 1) * 1000):03d}"
+
+            self.packet_samples.append({
+                "no": len(self.packet_samples) + 1,
+                "time": ts_str,
+                "timestamp_raw": timestamp,
+                "source": src_str,
+                "destination": dst_str,
+                "protocol": proto_name,
+                "length": length,
+                "info": " ".join(info_parts)
+            })
+
+    def to_cicids_features(self) -> Dict[str, Any]:
         """Convert accumulated flow data into the exact 77 CICFlowMeter features."""
         all_lengths = self.fwd_packet_lengths + self.bwd_packet_lengths
         tot_fwd_pkts = len(self.fwd_packet_lengths)
@@ -219,10 +252,15 @@ class NetworkFlow:
             "Idle Min": 0.0,
         }
 
-        # Ensure every feature in models/feature_names.json is present
-        for rf in REQUIRED_FEATURES:
-            if rf not in features:
-                features[rf] = 0.0
+        # Attach flow metadata and Wireshark packet inspection traces
+        features["_packet_samples"] = list(self.packet_samples)
+        features["_flow_key"] = {
+            "src_ip": self.src_ip,
+            "dst_ip": self.dst_ip,
+            "src_port": self.src_port,
+            "dst_port": self.dst_port,
+            "protocol": self.protocol,
+        }
 
         return features
 
@@ -258,7 +296,7 @@ class FlowExtractor:
         timestamp: Optional[float] = None,
         flags: Optional[Dict[str, int]] = None,
         win_size: int = 0,
-    ) -> Optional[Dict[str, float]]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Process an incoming packet into a flow.
         Returns the completed flow features if TCP FIN/RST or timeout is met.
@@ -282,13 +320,16 @@ class FlowExtractor:
 
         return None
 
-    def flush_expired_flows(self, current_time: Optional[float] = None) -> List[Dict[str, float]]:
-        """Flush flows that have been idle past flow_timeout_sec."""
+    def flush_expired_flows(self, current_time: Optional[float] = None, force_all: bool = False) -> List[Dict[str, Any]]:
+        """Flush flows that have been idle past flow_timeout_sec, or all active flows if force_all=True."""
         now = current_time or time.time()
-        expired_keys = [
-            k for k, f in self.active_flows.items()
-            if (now - f.last_time) >= self.flow_timeout_sec
-        ]
+        if force_all:
+            expired_keys = list(self.active_flows.keys())
+        else:
+            expired_keys = [
+                k for k, f in self.active_flows.items()
+                if (now - f.last_time) >= self.flow_timeout_sec
+            ]
 
         completed = []
         for k in expired_keys:
@@ -442,4 +483,41 @@ def start_live_capture(
     # Flush any remaining flows
     remaining = extractor.flush_expired_flows()
     completed_flows.extend(remaining)
+    return completed_flows
+
+
+def read_pcap_file(
+    pcap_path: str,
+    flow_callback: Optional[Any] = None,
+) -> List[Dict[str, float]]:
+    """
+    Read packets from a Wireshark / tcpdump capture file (.pcap or .pcapng),
+    aggregate them into bidirectional flows, and compute the 77 CICFlowMeter features.
+    """
+    if not os.path.exists(pcap_path):
+        raise FileNotFoundError(f"PCAP file not found: {pcap_path}")
+
+    try:
+        from scapy.layers.l2 import Ether
+        from scapy.layers.inet import IP, TCP, UDP
+        from scapy.utils import rdpcap
+    except ImportError:
+        print("[!] Scapy not installed. Run: pip install scapy")
+        return []
+
+    extractor = FlowExtractor(flow_timeout_sec=3.0)
+    completed_flows = []
+
+    print(f"[*] Reading Wireshark capture file: {pcap_path}...")
+    packets = rdpcap(pcap_path)
+    for pkt in packets:
+        flow = process_scapy_packet(pkt, extractor)
+        if flow:
+            completed_flows.append(flow)
+            if flow_callback:
+                flow_callback(flow)
+
+    remaining = extractor.flush_expired_flows(force_all=True)
+    completed_flows.extend(remaining)
+    print(f"[+] Extracted {len(completed_flows)} completed flow(s) from PCAP.")
     return completed_flows

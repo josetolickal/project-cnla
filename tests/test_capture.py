@@ -69,6 +69,33 @@ class TestNetworkCapture(unittest.TestCase):
         self.assertIn("probability", prediction)
         self.assertIn("is_malicious", prediction)
 
+    def test_pcap_file_reading(self):
+        import tempfile
+        try:
+            from scapy.layers.inet import IP, TCP
+            from scapy.utils import wrpcap
+            from src.capture import read_pcap_file
+
+            tf = tempfile.NamedTemporaryFile(suffix=".pcap", delete=False)
+            pcap_path = tf.name
+            tf.close()
+
+            try:
+                pkts = [
+                    IP(src="192.168.1.50", dst="192.168.1.1")/TCP(sport=1000, dport=80, flags="S"),
+                    IP(src="192.168.1.1", dst="192.168.1.50")/TCP(sport=80, dport=1000, flags="SA"),
+                    IP(src="192.168.1.50", dst="192.168.1.1")/TCP(sport=1000, dport=80, flags="FA"),
+                ]
+                wrpcap(pcap_path, pkts)
+                flows = read_pcap_file(pcap_path)
+                self.assertEqual(len(flows), 1)
+                self.assertIn("Total Fwd Packets", flows[0])
+            finally:
+                if os.path.exists(pcap_path):
+                    os.remove(pcap_path)
+        except ImportError:
+            pass
+
 
 if __name__ == "__main__":
     unittest.main()

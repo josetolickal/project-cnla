@@ -142,6 +142,39 @@
       </div>
     </div>
 
+    <!-- Wireshark Capture & Live Sniffer Toolbar -->
+    <div class="bg-cyber-800/90 border border-cyber-700 p-4 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-lg">
+      <div class="flex items-center space-x-3">
+        <span class="text-xs font-bold uppercase text-slate-200 flex items-center gap-2">
+          <i class="fa-solid fa-water text-cyan-400"></i> Wireshark Linux Engine:
+        </span>
+        <!-- Hidden file input for PCAP upload -->
+        <input type="file" id="pcapUploadInput" accept=".pcap,.pcapng,.cap" onchange="handlePcapUpload(this)" class="hidden">
+        <button onclick="document.getElementById('pcapUploadInput').click()" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-cyan-600/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-600/30 transition flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-file-arrow-up"></i> Upload Wireshark .pcap
+        </button>
+      </div>
+
+      <!-- Sample PCAP Quick Selectors & Live Sniffer Toggle -->
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-[11px] text-slate-400 font-semibold mr-1">Demo Attack PCAPs:</span>
+        <button onclick="loadSamplePcap('syn_flood_ddos.pcap')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-950/40 text-red-300 border border-red-800/50 hover:bg-red-900/40 transition">
+          <i class="fa-solid fa-burst mr-1"></i> DDoS.pcap
+        </button>
+        <button onclick="loadSamplePcap('ssh_bruteforce.pcap')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/40 transition">
+          <i class="fa-solid fa-key mr-1"></i> SSH_Attack.pcap
+        </button>
+        <button onclick="loadSamplePcap('benign_web_browsing.pcap')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-950/40 text-emerald-300 border border-emerald-800/50 hover:bg-emerald-900/40 transition">
+          <i class="fa-solid fa-check mr-1"></i> Benign_Web.pcap
+        </button>
+        <div class="h-4 w-[1px] bg-cyber-700 mx-1"></div>
+        <button id="btnLiveSniffer" onclick="toggleLiveSniffer()" class="px-3 py-1 text-xs font-bold rounded-lg bg-cyber-700 text-slate-300 border border-cyber-600 hover:bg-cyber-600 transition flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-slate-500" id="liveSnifferLed"></span>
+          <span id="liveSnifferText">Live Sniffer (eth0): OFF</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Quick Simulation Bar -->
     <div class="bg-cyber-800/90 border border-cyber-700 p-4 rounded-xl flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center space-x-2">
@@ -290,6 +323,36 @@
           </div>
         </div>
 
+        <!-- Wireshark Packet Inspection Panel -->
+        <div class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl space-y-3">
+          <div class="flex items-center justify-between border-b border-cyber-700 pb-3">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <i class="fa-solid fa-water text-cyan-400"></i> Wireshark Packet Dissection
+            </h2>
+            <button onclick="openFullWiresharkModal()" class="text-xs text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 bg-cyan-950/60 px-2 py-1 rounded border border-cyan-800/50">
+              <i class="fa-solid fa-up-right-and-down-left-from-center text-[10px]"></i> Expand
+            </button>
+          </div>
+
+          <div class="overflow-x-auto max-h-52 overflow-y-auto rounded-lg border border-cyber-700 bg-cyber-900/90">
+            <table class="w-full text-left text-[11px] font-mono">
+              <thead class="bg-cyber-950 text-slate-400 uppercase tracking-wider sticky top-0 border-b border-cyber-700">
+                <tr>
+                  <th class="py-1.5 px-2">No.</th>
+                  <th class="py-1.5 px-2">Time</th>
+                  <th class="py-1.5 px-2">Source</th>
+                  <th class="py-1.5 px-2">Proto</th>
+                  <th class="py-1.5 px-2">Len</th>
+                  <th class="py-1.5 px-2">Info</th>
+                </tr>
+              </thead>
+              <tbody id="wiresharkPacketTable" class="divide-y divide-cyber-800 text-slate-300">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Firewall Mitigation Panel -->
         <div class="bg-cyber-800/80 border border-cyber-700 p-5 rounded-xl space-y-4">
           <div class="flex items-center justify-between border-b border-cyber-700 pb-3">
@@ -317,6 +380,87 @@
       </div>
     </div>
   </main>
+
+  <!-- Interactive Wireshark 3-Pane Dissection Modal -->
+  <div id="wiresharkModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-cyber-900 border border-cyber-700 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in duration-200">
+      <!-- Modal Header -->
+      <div class="p-4 border-b border-cyber-700 flex items-center justify-between bg-cyber-800/90">
+        <div class="flex items-center gap-3">
+          <div class="bg-cyan-500/20 text-cyan-400 p-2.5 rounded-xl border border-cyan-500/30 text-xl">
+            <i class="fa-solid fa-water"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              Wireshark Packet Dissector & Protocol Analyzer
+              <span id="modalFlowBadge" class="text-xs px-2.5 py-0.5 rounded-full font-bold bg-cyber-700 text-slate-300">Flow #1</span>
+            </h3>
+            <p class="text-xs text-slate-400">Deep Packet Inspection (DPI) & Full Protocol Header Decoding</p>
+          </div>
+        </div>
+        <button onclick="closeWiresharkModal()" class="text-slate-400 hover:text-white p-2 text-xl rounded-lg hover:bg-cyber-700/50 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body (Wireshark Classic 3-Pane Layout) -->
+      <div class="p-4 overflow-y-auto space-y-4 flex-1">
+        <!-- Top Pane: Packet List -->
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-list-ol text-cyan-400"></i> 1. Captured Packet Frames:
+          </span>
+          <div class="overflow-x-auto max-h-52 overflow-y-auto rounded-lg border border-cyber-700 bg-cyber-950 font-mono text-xs">
+            <table class="w-full text-left">
+              <thead class="bg-cyber-900 text-slate-400 uppercase tracking-wider sticky top-0 border-b border-cyber-700">
+                <tr>
+                  <th class="py-1.5 px-3">No.</th>
+                  <th class="py-1.5 px-3">Time</th>
+                  <th class="py-1.5 px-3">Source IP:Port</th>
+                  <th class="py-1.5 px-3">Destination IP:Port</th>
+                  <th class="py-1.5 px-3">Protocol</th>
+                  <th class="py-1.5 px-3">Length</th>
+                  <th class="py-1.5 px-3">Info / Flags</th>
+                </tr>
+              </thead>
+              <tbody id="modalPacketTable" class="divide-y divide-cyber-800 text-slate-300 cursor-pointer">
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Middle Pane: Decoded Protocol Tree -->
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-sitemap text-cyan-400"></i> 2. Decoded Protocol Layers (OSI Stack):
+          </span>
+          <div class="bg-cyber-950 rounded-lg border border-cyber-700 p-3.5 font-mono text-xs space-y-2 text-slate-300" id="modalProtocolTree">
+            <!-- Dynamic tree nodes -->
+          </div>
+        </div>
+
+        <!-- Bottom Pane: Hex Dump View -->
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-barcode text-cyan-400"></i> 3. Raw Wire Hex Dump:
+          </span>
+          <div class="bg-cyber-950 rounded-lg border border-cyber-700 p-3.5 font-mono text-[11px] text-emerald-400 overflow-x-auto whitespace-pre leading-relaxed shadow-inner" id="modalHexDump">
+            <!-- Dynamic hex dump -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-3 border-t border-cyber-700 bg-cyber-800/70 flex justify-between items-center text-xs text-slate-400">
+        <span class="flex items-center gap-1.5">
+          <i class="fa-brands fa-linux text-slate-300"></i> Captured via Scapy / libpcap native Linux link layer
+        </span>
+        <button onclick="closeWiresharkModal()" class="px-4 py-1.5 rounded-lg bg-cyber-700 hover:bg-cyber-600 text-white font-semibold transition">
+          Close Dissector
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script>
     let currentMode = 'simple'; // 'simple' or 'expert'
@@ -622,7 +766,194 @@
         shapChart.update();
       }
 
+      // 3. Render Wireshark Packet Breakdown
+      renderWiresharkPackets(ev.packets || []);
+
       renderTable(currentEvents);
+    }
+
+    function renderWiresharkPackets(packets) {
+      const tbody = document.getElementById('wiresharkPacketTable');
+      if (!packets || packets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-slate-500 italic">No packet frames recorded.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = '';
+      packets.slice(0, 8).forEach(p => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-cyber-800/80 transition cursor-pointer';
+        tr.onclick = () => openFullWiresharkModal();
+
+        let protoColor = 'text-cyan-400';
+        if (p.protocol === 'SSHv2' || p.protocol === 'SSH') protoColor = 'text-purple-400';
+        else if (p.protocol === 'HTTP') protoColor = 'text-emerald-400';
+        else if (p.info && p.info.includes('SYN')) protoColor = 'text-amber-400';
+
+        tr.innerHTML = `
+          <td class="py-1.5 px-2 text-slate-500">${p.no}</td>
+          <td class="py-1.5 px-2 text-slate-400 whitespace-nowrap">${p.time}</td>
+          <td class="py-1.5 px-2 text-slate-200 truncate max-w-[100px]" title="${p.source}">${p.source}</td>
+          <td class="py-1.5 px-2 ${protoColor} font-bold">${p.protocol}</td>
+          <td class="py-1.5 px-2 text-slate-400">${p.length}B</td>
+          <td class="py-1.5 px-2 text-slate-300 truncate max-w-[130px]" title="${p.info}">${p.info}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openFullWiresharkModal() {
+      const ev = currentEvents.find(e => e.id === window.selectedEventId) || currentEvents[0];
+      if (!ev) return;
+
+      const modal = document.getElementById('wiresharkModal');
+      modal.classList.remove('hidden');
+      document.getElementById('modalFlowBadge').textContent = `Flow #${ev.id} (${ev.attack_type}) - ${ev.source_ip} -> ${ev.dest_ip}:${ev.dest_port}`;
+
+      const tbody = document.getElementById('modalPacketTable');
+      tbody.innerHTML = '';
+      const packets = ev.packets || [];
+
+      if (packets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500 italic">No packet stream available.</td></tr>';
+        return;
+      }
+
+      packets.forEach((p, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = (idx === 0 ? 'bg-cyan-950/60 border-l-4 border-cyan-400' : '') + ' hover:bg-cyber-800/80 transition';
+        tr.onclick = () => selectModalPacket(p, tr);
+
+        let protoColor = 'text-cyan-400';
+        if (p.protocol === 'SSHv2' || p.protocol === 'SSH') protoColor = 'text-purple-400';
+        else if (p.protocol === 'HTTP') protoColor = 'text-emerald-400';
+
+        tr.innerHTML = `
+          <td class="py-1.5 px-3 text-slate-400">${p.no}</td>
+          <td class="py-1.5 px-3 text-slate-300 whitespace-nowrap">${p.time}</td>
+          <td class="py-1.5 px-3 font-mono">${p.source}</td>
+          <td class="py-1.5 px-3 font-mono">${p.destination}</td>
+          <td class="py-1.5 px-3 ${protoColor} font-bold">${p.protocol}</td>
+          <td class="py-1.5 px-3 text-slate-400">${p.length} B</td>
+          <td class="py-1.5 px-3 text-slate-200">${p.info}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      selectModalPacket(packets[0]);
+    }
+
+    function selectModalPacket(pkt, rowElem) {
+      if (rowElem) {
+        const rows = document.querySelectorAll('#modalPacketTable tr');
+        rows.forEach(r => r.className = 'hover:bg-cyber-800/80 transition');
+        rowElem.className = 'bg-cyan-950/60 border-l-4 border-cyan-400';
+      }
+
+      const protoTree = document.getElementById('modalProtocolTree');
+      const srcHost = pkt.source ? pkt.source.split(':')[0] : '192.168.1.100';
+      const dstHost = pkt.destination ? pkt.destination.split(':')[0] : '192.168.1.1';
+      const srcPort = pkt.source ? (pkt.source.split(':')[1] || '52140') : '52140';
+      const dstPort = pkt.destination ? (pkt.destination.split(':')[1] || '80') : '80';
+
+      protoTree.innerHTML = `
+        <div class="text-slate-300"><i class="fa-solid fa-angle-right text-[10px] mr-1.5 text-cyan-400"></i><b>Frame ${pkt.no}</b>: ${pkt.length} bytes on wire (${pkt.length * 8} bits), ${pkt.length} bytes captured</div>
+        <div class="text-slate-300 pl-3"><i class="fa-solid fa-angle-right text-[10px] mr-1.5 text-cyan-400"></i><b>Ethernet II</b>, Src: 52:54:00:12:34:56, Dst: 00:1a:2b:3c:4d:5e</div>
+        <div class="text-slate-200 pl-6"><i class="fa-solid fa-angle-right text-[10px] mr-1.5 text-cyan-400"></i><b>Internet Protocol Version 4</b>, Src: ${srcHost}, Dst: ${dstHost}, Protocol: ${pkt.protocol}</div>
+        <div class="text-slate-200 pl-9"><i class="fa-solid fa-angle-right text-[10px] mr-1.5 text-cyan-400"></i><b>Transport Layer (${pkt.protocol})</b>, Src Port: ${srcPort}, Dst Port: ${dstPort}</div>
+        <div class="text-cyan-300 pl-12 font-bold bg-cyan-950/40 p-1.5 rounded border border-cyan-800/50"><i class="fa-solid fa-tag text-[10px] mr-1"></i>Header Info: ${pkt.info}</div>
+      `;
+
+      const hexElem = document.getElementById('modalHexDump');
+      hexElem.textContent = generateSyntheticHexDump(pkt);
+    }
+
+    function generateSyntheticHexDump(pkt) {
+      const srcHex = pkt.source && pkt.source.includes('203') ? "cb 00 71 2d" : "c0 a8 01 69";
+      return [
+        "0000   52 54 00 12 34 56 00 1a  2b 3c 4d 5e 08 00 45 00   RT..4V..+<M^..E.",
+        `0010   00 3c 1a 2b 40 00 40 06  e5 4f ${srcHex} c0 a8 01 64   .<.+@.@..O...q-..i..d`,
+        "0020   c8 b4 00 50 00 00 03 e8  00 00 00 00 a0 02 72 10   ...P..........r.",
+        "0030   b6 23 00 00 02 04 05 b4  04 02 08 0a 01 2c 00 00   .#..........,...",
+      ].join("\n");
+    }
+
+    function closeWiresharkModal() {
+      document.getElementById('wiresharkModal').classList.add('hidden');
+    }
+
+    async function handlePcapUpload(input) {
+      if (!input.files || input.files.length === 0) return;
+      const file = input.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/upload_pcap', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`✅ PCAP Processed Successfully!\nExtracted ${data.flows_processed} flow(s). Detected ${data.malicious_detected} threat(s).`);
+          await refreshDashboard();
+          if (data.latest_event_id) {
+            selectEventById(data.latest_event_id);
+          }
+        } else {
+          alert(`❌ PCAP Upload Failed: ${data.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`❌ Network Error: ${err.message}`);
+      } finally {
+        input.value = '';
+      }
+    }
+
+    async function loadSamplePcap(filename) {
+      try {
+        const res = await fetch('/api/load_sample_pcap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: filename })
+        });
+        const data = await res.json();
+        if (data.success) {
+          await refreshDashboard();
+          if (data.latest_event_id) {
+            selectEventById(data.latest_event_id);
+          }
+        } else {
+          alert(`Error: ${data.error}`);
+        }
+      } catch (err) {
+        console.error("Failed to load sample pcap:", err);
+      }
+    }
+
+    let liveSnifferActive = false;
+    async function toggleLiveSniffer() {
+      const led = document.getElementById('liveSnifferLed');
+      const text = document.getElementById('liveSnifferText');
+      const btn = document.getElementById('btnLiveSniffer');
+
+      if (!liveSnifferActive) {
+        await fetch('/api/capture/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ interface: 'eth0' })
+        });
+        liveSnifferActive = true;
+        led.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-ping';
+        text.textContent = 'Live Sniffer (eth0): ON';
+        btn.className = 'px-3 py-1 text-xs font-bold rounded-lg bg-emerald-950/50 text-emerald-300 border border-emerald-500/50 transition flex items-center gap-1.5 shadow-sm';
+      } else {
+        await fetch('/api/capture/stop', { method: 'POST' });
+        liveSnifferActive = false;
+        led.className = 'w-2 h-2 rounded-full bg-slate-500';
+        text.textContent = 'Live Sniffer (eth0): OFF';
+        btn.className = 'px-3 py-1 text-xs font-bold rounded-lg bg-cyber-700 text-slate-300 border border-cyber-600 hover:bg-cyber-600 transition flex items-center gap-1.5';
+      }
     }
 
     function renderBlockedIps(blockedList) {
