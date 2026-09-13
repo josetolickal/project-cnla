@@ -24,7 +24,9 @@ SERVICE_FILE="/etc/systemd/system/nids.service"
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo -e "[1/6] Installing necessary Linux packages (libpcap, iptables, python3-venv)..."
-if command -v apt-get &> /dev/null; then
+if command -v pacman &> /dev/null; then
+    pacman -Sy --noconfirm --needed libpcap iptables python python-pip curl
+elif command -v apt-get &> /dev/null; then
     apt-get update -qq
     apt-get install -y -qq libpcap-dev iptables python3 python3-pip python3-venv curl
 elif command -v dnf &> /dev/null; then

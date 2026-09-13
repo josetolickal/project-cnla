@@ -327,7 +327,17 @@ class LiveSnifferManager:
                     dst_port = flow_key.get("dst_port", 80)
                     process_flow_event(completed, source_ip=src_ip, dest_ip=dst_ip, dest_port=dst_port)
 
-            iface = None if self.interface in ("default", "any") else self.interface
+            iface = self.interface
+            if iface in ("default", "any", "auto", None):
+                iface = None
+            else:
+                try:
+                    from scapy.all import get_if_list
+                    available_ifaces = get_if_list()
+                    if iface not in available_ifaces:
+                        iface = None
+                except Exception:
+                    pass
             sniff(iface=iface, prn=_handler, stop_filter=lambda x: not self.is_running, store=False)
         except Exception:
             # Fallback to simulated live network stream for viva/testing
